@@ -1,0 +1,140 @@
+@import "tailwindcss";
+@import "@fontsource/fredoka/400.css";
+@import "@fontsource/fredoka/500.css";
+@import "@fontsource/fredoka/600.css";
+@import "@fontsource/fredoka/700.css";
+
+/* shadcn-style tokens, themed for a candy-cane Christmas. */
+@theme {
+  --font-sans: "Fredoka", ui-rounded, system-ui, sans-serif;
+  --color-background: #fff8f3;
+  --color-foreground: #3a2340;
+  --color-card: #fffdfb;
+  --color-card-foreground: #3a2340;
+  --color-primary: #e2384d;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #3dbb7a;
+  --color-secondary-foreground: #ffffff;
+  --color-muted: #f6e7ee;
+  --color-muted-foreground: #8a6d86;
+  --color-accent: #ffc94a;
+  --color-accent-foreground: #4a2a12;
+  --color-border: #f1d3df;
+  --color-ring: #ff8fbf;
+  --color-snow: #eef4ff;
+  --color-mint: #9ff0d2;
+  --color-candy: #ff8fbf;
+  --color-night: #2b1d3f;
+  --color-blood: #a3172b;
+  --radius-lg: 1.25rem;
+  --radius-md: 0.9rem;
+  --radius-sm: 0.6rem;
+  --animate-float: float 3.5s ease-in-out infinite;
+  --animate-wiggle: wiggle 1.2s ease-in-out infinite;
+  --animate-fall: fall linear infinite;
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  @keyframes wiggle {
+    0%,
+    100% {
+      transform: rotate(-4deg);
+    }
+    50% {
+      transform: rotate(4deg);
+    }
+  }
+  @keyframes fall {
+    from {
+      transform: translate3d(0, -10vh, 0) rotate(0deg);
+    }
+    to {
+      transform: translate3d(var(--drift, 20px), 110vh, 0) rotate(360deg);
+    }
+  }
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #2b1d3f;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  outline: none;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+#ui * {
+  pointer-events: auto;
+}
+
+#ui .pointer-events-none,
+#ui .pointer-events-none * {
+  pointer-events: none;
+}
+
+@utility candy-stripes {
+  background-image: repeating-linear-gradient(-45deg, #e2384d 0 14px, #ffffff 14px 28px);
+}
+
+/* Stripes that scroll forever on the compositor (smooth even while the scene is being built).
+   One loop moves exactly one horizontal stripe period: 28px at -45deg = 28px * sqrt(2). */
+@keyframes candy-scroll {
+  from {
+    transform: translateX(calc(-28px * 1.41421356));
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@utility candy-scroll {
+  animation: candy-scroll 0.6s linear infinite;
+  will-change: transform;
+}
+
+@utility candy-stripes-soft {
+  background-image: repeating-linear-gradient(-45deg, #ffd1dc 0 12px, #ffffff 12px 24px);
+}
+
+@utility text-outline {
+  -webkit-text-stroke: 6px #3a2340;
+  paint-order: stroke fill;
+}
+
+@utility text-outline-sm {
+  -webkit-text-stroke: 3px #3a2340;
+  paint-order: stroke fill;
+}
+
+@utility shadow-chunky {
+  box-shadow: 0 6px 0 0 rgba(58, 35, 64, 0.85);
+}
+
+#ui .pointer-events-auto,
+#ui .pointer-events-auto * {
+  pointer-events: auto;
+}
