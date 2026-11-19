@@ -8,7 +8,7 @@ Père Fouettard has kidnapped Mère Noël and possessed the North Pole: the elve
 
 Every model, animation, sound effect and piece of music is generated in code. The project contains no asset files.
 
-**Play it:** https://sauvez-mere-noel.f3l1.workers.dev/
+**Play it:** https://noel.lheureux.xyz/
 
 ![Title screen](docs/screenshots/title.jpg)
 
