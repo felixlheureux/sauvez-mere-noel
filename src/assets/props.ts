@@ -787,11 +787,11 @@ export class PropFactory {
 
   /** The ski chalet: A-frame on a deck with stilts. */
   chalet(): Mesh {
-    const b = this.b("chalet")
-      .part("m", box(10, 0.4, 8), "wood", { pos: [0, 1.3, 0] })
+    const b = this.b("chalet");
+    roofSnow(b, 9.6, 4.6, 7.2, [0, 4.85, -0.5]);
+    b.part("m", box(10, 0.4, 8), "wood", { pos: [0, 1.3, 0] })
       .part("m", box(8, 3.4, 6), "brown", { pos: [0, 3.2, -0.5] })
       .part("m", prism(9.6, 4.6, 7.2), "deepRed", { pos: [0, 4.85, -0.5] })
-      .part("m", prism(9.8, 0.5, 7.4), "snow", { pos: [0, 9.0, -0.5] })
       .part("m", box(3.2, 0.9, 0.12), "white", { pos: [0, 6.0, 3.15] })
       .part("m", box(3.0, 0.6, 0.14), "red", { pos: [0, 6.0, 3.17] })
       .part("m", box(1.4, 2.2, 0.12), "darkBrown", { pos: [0, 2.6, 2.56] })
@@ -1403,6 +1403,7 @@ export class PropFactory {
   cabane(w = 20, d = 12, h = 4): Mesh {
     const b = this.b("cabane");
     const t = 0.4;
+    roofSnow(b, w + 1, 4, d + 1.4, [0, h, 0]);
     // Front wall (z = -d/2) with a door gap, back wall, sides.
     b.part("m", box(w / 2 - 1.5, h, t), "wood", { pos: [-(w / 4 + 0.75), h / 2, -d / 2] })
       .part("m", box(w / 2 - 1.5, h, t), "wood", { pos: [w / 4 + 0.75, h / 2, -d / 2] })
@@ -1416,7 +1417,6 @@ export class PropFactory {
       .part("m", box(t, h - 2.8, 3), "brown", { pos: [2, h - (h - 2.8) / 2, -d / 2 + 5.5] })
       .part("m", box(w, 0.1, d), "darkBrown", { pos: [0, 0.05, 0] })
       .part("m", prism(w + 1, 4, d + 1.4), "deepRed", { pos: [0, h, 0] })
-      .part("m", prism(w + 1.1, 0.6, d + 1.5), "snow", { pos: [0, h + 3.45, 0] })
       // Porch roof on the left of the door.
       .part("m", box(7, 0.25, 3), "deepRed", { pos: [-6.5, 3, -d / 2 - 1.5] })
       .part("m", box(7.2, 0.2, 3.2), "snow", { pos: [-6.5, 3.18, -d / 2 - 1.5] })
@@ -2124,6 +2124,19 @@ export class PropFactory {
 }
 
 /** Gable roof sitting on the walls, with a small overhang. */
+/**
+ * Snow on a pitched roof (a prism of `w` × `h` × `d` with its base at `pos`): the same
+ * triangle, smaller, lifted so its slopes lie parallel just above the roof's (no gap, no
+ * flicker), covering the top `cover` of the roof.
+ */
+function roofSnow(b: ModelBuilder, w: number, h: number, d: number, pos: V3, cover = 0.55) {
+  const slope = Math.atan2(h, w / 2);
+  const lift = 0.14 / Math.cos(slope);
+  b.part("m", prism(w * cover, h * cover, d + 0.12), "snow", {
+    pos: [pos[0], pos[1] + h + lift - h * cover, pos[2]],
+  });
+}
+
 function gable(b: ModelBuilder, w: number, d: number, wallTop: number, c: ColorName, over = 1.12) {
   const width = w * over + 0.3;
   b.part("m", prism(width, width * 0.5, d), c, { pos: [0, wallTop - 0.05, 0] });
