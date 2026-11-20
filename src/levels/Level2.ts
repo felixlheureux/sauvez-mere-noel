@@ -348,7 +348,7 @@ export class Level2 extends Level {
     }
 
     // The clearing: the final ambush in two waves.
-    await new Promise<void>((resolve) => this.trigger(0, 32, 5, resolve));
+    await this.reachOrPass(0, 32, 5);
     g.tip(LINES.level2Clearing);
     g.objective(OBJ.survivedClearing);
     this.pack(new Vector3(-8, 0, 46), 3, ELF_SPRINTER);

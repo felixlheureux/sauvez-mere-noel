@@ -401,6 +401,8 @@ export class Elf {
   /** Which way it last went round (±1), remembered for a few seconds so it doesn't dither. */
   detourSide = 0;
   detourMemory = 0;
+  /** Mid-leap across a gap: keeps its momentum (no air steering) until it lands. */
+  leaping = false;
 
   /** A charge that hit a wall: stop dead, dazed. */
   daze() {

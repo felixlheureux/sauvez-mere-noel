@@ -410,10 +410,15 @@ export class Level6 extends Level {
     }
   }
 
-  /** Resolves when Santa stands on `roof` (not just above it: the slush is below too). */
+  /**
+   * Resolves when Santa stands on `roof` (not just above it: the slush is below too), or on
+   * any roof further along the route, so skipping ahead never means walking back.
+   */
   private async reach(roof: Roof) {
     const g = this.game;
-    while (!this.onRoof(roof, g.player.body.position) || !g.player.body.grounded) {
+    const route = Object.values(ROUTE);
+    const ahead = route.slice(route.indexOf(roof));
+    while (!g.player.body.grounded || !ahead.some((r) => this.onRoof(r, g.player.body.position))) {
       await g.wait(0.15);
     }
   }

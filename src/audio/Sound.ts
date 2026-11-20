@@ -382,6 +382,7 @@ const freq = (semi: number, base = 523.25) => base * 2 ** (semi / 12);
 /** The volume slider's 100% maps to this gain (about -15 dB): a fight measured -11.5 dBFS RMS
  *  and clipped at full gain (tests/e2e/loudness.py). */
 const HEADROOM = 0.18;
+/** Music level, applied after the distortion (so the drive never makes it louder). */
 const MUSIC_GAIN = 0.07;
 /** Carols in the order they rotate in after each rest. */
 const ROTATION: Theme[] = ["jingle", "wewish", "reel", "anges", "silent"];
@@ -391,6 +392,8 @@ export class Sound {
   private master!: GainNode;
   private musicBus!: GainNode;
   private sfxBus!: GainNode;
+  /** Hard-clipped path into the SFX bus: gunshots, gore and blasts go through it for grit. */
+  private grit!: WaveShaperNode;
   private shaper!: WaveShaperNode;
   private musicFilter!: BiquadFilterNode;
   private noise!: AudioBuffer;
@@ -407,6 +410,11 @@ export class Sound {
   private restUntil = 0;
   private volume = 0.8;
   musicOn = true;
+
+  /** Audio is running (unlock() was called from a user gesture). */
+  get ready() {
+    return this.ctx !== null;
+  }
 
   /** Must be called from a user gesture (browser autoplay rules). */
   unlock() {
@@ -430,8 +438,19 @@ export class Sound {
     this.sfxBus = ctx.createGain();
     this.sfxBus.gain.value = 0.7;
     this.sfxBus.connect(this.master);
+    this.grit = ctx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < curve.length; i++) curve[i] = Math.tanh(((i / 1023) * 2 - 1) * 6);
+    this.grit.curve = curve;
+    this.grit.oversample = "2x";
+    const gritLevel = ctx.createGain();
+    gritLevel.gain.value = 0.35;
+    this.grit.connect(gritLevel).connect(this.sfxBus);
+    // musicBus (fades) -> distortion -> filter -> music level -> master.
     this.musicBus = ctx.createGain();
-    this.musicBus.gain.value = MUSIC_GAIN;
+    this.musicBus.gain.value = 1;
+    const musicLevel = ctx.createGain();
+    musicLevel.gain.value = MUSIC_GAIN;
     this.musicFilter = ctx.createBiquadFilter();
     this.musicFilter.type = "lowpass";
     this.musicFilter.frequency.value = 9000;
@@ -439,7 +458,7 @@ export class Sound {
     this.setDistortion(0);
     this.musicBus.connect(this.shaper);
     this.shaper.connect(this.musicFilter);
-    this.musicFilter.connect(this.master);
+    this.musicFilter.connect(musicLevel).connect(this.master);
     this.noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
@@ -473,7 +492,8 @@ export class Sound {
     const curve = new Float32Array(n);
     for (let i = 0; i < n; i++) {
       const x = (i * 2) / n - 1;
-      curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
+      // Divided back down so the darker music is grittier, not louder.
+      curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x)) / (1 + k * 0.03);
     }
     this.shaper.curve = curve;
   }
@@ -483,7 +503,7 @@ export class Sound {
   startMusic() {
     if (!this.ctx || this.musicTimer !== null) return;
     this.musicBus.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.musicBus.gain.setTargetAtTime(MUSIC_GAIN, this.ctx.currentTime, 0.2);
+    this.musicBus.gain.setTargetAtTime(1, this.ctx.currentTime, 0.2);
     this.nextNoteTime = this.ctx.currentTime + 0.1;
     this.bassTime = this.nextNoteTime;
     this.melodyIndex = 0;
@@ -604,7 +624,15 @@ export class Sound {
 
   // ---------- SFX ----------
 
-  private tone(type: OscillatorType, f0: number, f1: number, dur: number, gain = 0.3, when = 0) {
+  private tone(
+    type: OscillatorType,
+    f0: number,
+    f1: number,
+    dur: number,
+    gain = 0.3,
+    when = 0,
+    out: AudioNode = this.sfxBus,
+  ) {
     const ctx = this.ctx;
     if (!ctx) return;
     const t = ctx.currentTime + when;
@@ -615,7 +643,7 @@ export class Sound {
     o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
     g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g).connect(this.sfxBus);
+    o.connect(g).connect(out);
     o.start(t);
     o.stop(t + dur + 0.02);
   }
@@ -627,6 +655,7 @@ export class Sound {
     gain = 0.4,
     type: BiquadFilterType = "bandpass",
     when = 0,
+    out: AudioNode = this.sfxBus,
   ) {
     const ctx = this.ctx;
     if (!ctx) return;
@@ -641,7 +670,7 @@ export class Sound {
     const g = ctx.createGain();
     g.gain.setValueAtTime(gain, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f).connect(g).connect(this.sfxBus);
+    src.connect(f).connect(g).connect(out);
     src.start(t, Math.random() * 0.5);
     src.stop(t + dur + 0.02);
   }
@@ -659,6 +688,33 @@ export class Sound {
   dash() {
     this.burst(0.22, 1800, 0.6, 0.25, "bandpass");
   }
+  /** Wet noise with a falling filter: the squelch under every gore sound. */
+  private squelch(gain: number, when = 0, from = 1400, to = 180, dur = 0.18) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const t = ctx.currentTime + when;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    const f = ctx.createBiquadFilter();
+    f.type = "bandpass";
+    f.Q.value = 5;
+    f.frequency.setValueAtTime(from, t);
+    f.frequency.exponentialRampToValueAtTime(to, t + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(gain, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f).connect(g).connect(this.grit);
+    src.start(t, Math.random() * 0.5);
+    src.stop(t + dur + 0.02);
+  }
+
+  /** The body of a gunshot: a clipped crack and a low boom. Bigger `size`, bigger gun. */
+  private blast(size: number) {
+    this.burst(0.03 + size * 0.03, 3500, 0.6, 0.9, "highpass", 0, this.grit);
+    this.burst(0.08 + size * 0.15, 700, 0.6, 0.5 + size * 0.3, "lowpass", 0, this.grit);
+    this.tone("sine", 150 + size * 20, 38, 0.1 + size * 0.2, 0.6 + size * 0.4, 0, this.grit);
+  }
+
   punch() {
     this.burst(0.06, 900, 1, 0.3);
     this.tone("sine", 160, 60, 0.12, 0.35);
@@ -670,27 +726,44 @@ export class Sound {
     this.tone("sine", 200, 900, 0.25, 0.25);
   }
   capGun() {
-    this.burst(0.08, 2800, 0.7, 0.5, "highpass");
-    this.burst(0.12, 600, 0.7, 0.4, "lowpass");
+    this.blast(0.4);
     this.tone("square", 900, 200, 0.05, 0.08);
-    this.tone("sine", 180, 50, 0.12, 0.45);
   }
   shotgun() {
-    this.burst(0.45, 900, 0.5, 0.8, "lowpass");
-    this.burst(0.15, 3000, 0.7, 0.5, "highpass");
-    this.tone("sine", 120, 35, 0.4, 0.8);
-    this.burst(0.6, 400, 0.5, 0.25, "lowpass", 0.08);
+    this.blast(1);
+    this.burst(0.15, 3000, 0.7, 0.4, "highpass");
+    this.burst(0.7, 400, 0.5, 0.3, "lowpass", 0.06);
   }
   pump() {
     this.burst(0.05, 1800, 2, 0.25, "bandpass", 0.25);
     this.burst(0.05, 1400, 2, 0.25, "bandpass", 0.38);
   }
-  hit() {
+  /** A bullet going into flesh (`gory` off: confetti mode, just a thwack). */
+  hit(gory = true) {
     this.burst(0.08, 600, 1.2, 0.35);
+    if (!gory) return;
+    this.tone("sine", 190, 55, 0.1, 0.5, 0, this.grit);
+    this.squelch(0.7, 0, 1600 + Math.random() * 600, 250, 0.12);
   }
+  /** A body bursting: a wet boom, bones cracking, a death squeal and the splatter landing. */
   splat() {
-    this.burst(0.25, 380, 0.9, 0.5, "lowpass");
-    this.tone("sine", 120, 45, 0.25, 0.4);
+    this.burst(0.35, 380, 0.9, 0.8, "lowpass", 0, this.grit);
+    this.tone("sine", 140, 30, 0.4, 0.9, 0, this.grit);
+    for (let i = 0; i < 3; i++)
+      this.squelch(0.9, i * 0.06 + Math.random() * 0.03, 2200 - i * 400, 160, 0.22);
+    for (let i = 0; i < 4; i++)
+      this.burst(
+        0.025,
+        2500 + Math.random() * 2000,
+        3,
+        0.5,
+        "bandpass",
+        0.02 + Math.random() * 0.12,
+        this.grit,
+      );
+    const f = 800 + Math.random() * 400;
+    this.tone("sawtooth", f, f * 0.25, 0.35, 0.12, 0.03);
+    for (let i = 0; i < 5; i++) this.squelch(0.35, 0.3 + Math.random() * 0.5, 900, 300, 0.08);
   }
   confettiPop() {
     this.tone("sine", 600, 1400, 0.1, 0.2);
@@ -701,7 +774,9 @@ export class Sound {
     this.burst(0.4, 250, 0.7, 0.5, "lowpass");
   }
   hurt() {
-    this.tone("sawtooth", 220, 110, 0.25, 0.18);
+    this.tone("sawtooth", 200, 90, 0.25, 0.3, 0, this.grit);
+    this.tone("sine", 130, 45, 0.18, 0.5);
+    this.squelch(0.5, 0, 900, 200, 0.12);
   }
   bell() {
     for (const [f, d] of [
@@ -767,9 +842,10 @@ export class Sound {
     this.tone("sawtooth", 90, 70, 0.6, 0.03);
   }
   explosion() {
-    this.burst(0.8, 300, 0.6, 0.8, "lowpass");
-    this.burst(0.3, 2500, 0.6, 0.3, "highpass");
-    this.tone("sine", 90, 30, 0.7, 0.6);
+    this.burst(1.1, 300, 0.6, 0.9, "lowpass", 0, this.grit);
+    this.burst(0.3, 2500, 0.6, 0.35, "highpass");
+    this.tone("sine", 90, 25, 0.9, 0.9, 0, this.grit);
+    this.burst(1.4, 180, 0.6, 0.35, "lowpass", 0.1);
   }
   freeze() {
     for (let i = 0; i < 6; i++)
@@ -777,9 +853,8 @@ export class Sound {
     this.burst(0.5, 6000, 0.8, 0.15, "highpass");
   }
   launcher() {
-    this.tone("sine", 200, 45, 0.25, 0.65);
-    this.burst(0.25, 700, 0.6, 0.45, "lowpass");
-    this.burst(0.18, 1200, 0.7, 0.25);
+    this.blast(0.6);
+    this.burst(0.25, 1200, 0.7, 0.3);
   }
   slapshot() {
     this.burst(0.06, 2500, 1.2, 0.45);
@@ -842,7 +917,7 @@ export class Sound {
   /** Arbalète à Cannes: a taut string twang and a whoosh. */
   twang() {
     this.tone("triangle", 220, 140, 0.18, 0.3);
-    this.tone("sine", 140, 45, 0.15, 0.45);
+    this.tone("sine", 140, 45, 0.15, 0.45, 0, this.grit);
     this.burst(0.1, 1800, 1, 0.3);
   }
   /** A possessed reindeer snorting before it charges. */
@@ -853,8 +928,8 @@ export class Sound {
 
   /** Guirlande Électrique: a buzzing electric snap. */
   zap() {
-    this.tone("sawtooth", 1800, 120, 0.16, 0.12);
-    this.tone("square", 90, 60, 0.12, 0.1);
+    this.tone("sawtooth", 1800, 120, 0.16, 0.3, 0, this.grit);
+    this.tone("square", 90, 60, 0.15, 0.3, 0, this.grit);
     this.burst(0.08, 4000, 1.4, 0.35, "highpass");
     this.tone("sine", 130, 40, 0.15, 0.4);
   }
@@ -870,15 +945,11 @@ export class Sound {
 
   /** Fusil à Glaçons: a crisp crack and a ringing, crystalline tail. */
   icicle() {
-    this.burst(0.07, 3200, 1.1, 0.5, "highpass");
-    this.tone("sine", 2600, 1400, 0.25, 0.12);
-    this.tone("sine", 160, 40, 0.18, 0.6);
+    this.blast(0.6);
+    this.tone("sine", 2600, 1400, 0.3, 0.14);
   }
   smg() {
-    this.burst(0.05, 2200, 1, 0.3);
-    this.burst(0.07, 500, 0.7, 0.25, "lowpass");
-    this.tone("square", 700, 300, 0.03, 0.05);
-    this.tone("sine", 150, 50, 0.07, 0.35);
+    this.blast(0.2);
   }
   whooshLong() {
     this.burst(0.6, 900, 0.7, 0.18);

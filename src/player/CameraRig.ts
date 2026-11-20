@@ -45,7 +45,11 @@ export class CameraRig {
     );
   }
 
+  /** Seconds since the player last turned the camera with the mouse. */
+  lookIdle = 0;
+
   look(dx: number, dy: number) {
+    if (Math.abs(dx) > 0.002) this.lookIdle = 0;
     this.yaw += dx;
     this.pitch = clamp(this.pitch + dy, -0.65, 1.1);
   }
@@ -85,6 +89,7 @@ export class CameraRig {
   }
 
   update(dt: number, focus: Vector3, running: boolean, physics: PhysicsWorld) {
+    this.lookIdle += dt;
     this.time += dt;
     const cam = this.camera;
 

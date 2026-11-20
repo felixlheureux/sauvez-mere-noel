@@ -68,9 +68,45 @@ export class EnemyManager {
       return ppos.y < p.y - 1.5;
     };
     if (safe(wish.x, wish.z)) return;
+    // A gap with a roof across it: melee elves leap it instead of stopping at the edge.
+    if (e.state === "chase" && !e.tuning.ranged && !e.tuning.boss && !e.tuning.charge) {
+      const d = this.leapAcross(e, wish.x, wish.z);
+      if (d > 0) {
+        // Up at 11 m/s, ~0.9 s in the air: enough to land 1.5 m past the far edge.
+        const l = Math.hypot(wish.x, wish.z);
+        const speed = (d + 1.5) / 0.85;
+        e.body.velocity.set((wish.x / l) * speed, 11, (wish.z / l) * speed);
+        e.leaping = true;
+        e.body.grounded = false;
+        e.anim.bounce(0.45);
+        sound.elfSquawk();
+        return;
+      }
+    }
     if (safe(wish.x, 0)) wish.z = 0;
     else if (safe(0, wish.z)) wish.x = 0;
     else wish.setAll(0);
+  }
+
+  /**
+   * Distance to safe ground about level with the elf across a gap ahead, or 0. Only gaps
+   * between roofs (a deep drop right ahead), not pits on the floor like the grinder.
+   */
+  private leapAcross(e: Elf, dx: number, dz: number) {
+    const g = this.game;
+    const p = e.body.position;
+    const l = Math.hypot(dx, dz);
+    if (l < 0.1) return 0;
+    const edge = e.body.radius + 0.5;
+    if (p.y - g.physics.groundHeightAt(p.x + (dx / l) * edge, p.z + (dz / l) * edge, p.y + 0.4) < 3)
+      return 0;
+    for (const d of [2.5, 3.5, 4.5, 5.5]) {
+      const x = p.x + (dx / l) * d;
+      const z = p.z + (dz / l) * d;
+      const h = g.physics.groundHeightAt(x, z, p.y + 1.4);
+      if (h > p.y - 1.6 && h < p.y + 1.3 && !g.level.deadlyGround(x, z, h)) return d;
+    }
+    return 0;
   }
 
   /** Nothing in the way for the next few metres toward Santa? */
@@ -367,7 +403,8 @@ export class EnemyManager {
         sound.elfSquawk();
       }
       // Plain elves slip on ice; skaters glide on purpose.
-      let accel = e.body.grounded ? (e.tuning.accel ?? 30) : 8;
+      if (e.body.grounded) e.leaping = false;
+      let accel = e.body.grounded ? (e.tuning.accel ?? 30) : e.leaping ? 0 : 8;
       if (!e.tuning.accel && e.body.grounded && g.level.isIcy(e.body.position)) accel *= 0.3;
       v.x = approach(v.x, wish.x + e.knock.x, accel * dt + Math.abs(e.knock.x));
       v.z = approach(v.z, wish.z + e.knock.z, accel * dt + Math.abs(e.knock.z));
@@ -520,7 +557,7 @@ export class EnemyManager {
     if (dir.lengthSquared() > 0) dir.normalize();
     if (!killed) {
       g.gore.burst(e.center, dir, g.gore.settings.particles * 0.25);
-      sound.hit();
+      sound.hit(!g.gore.confetti);
       return false;
     }
     this.kills++;

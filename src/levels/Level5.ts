@@ -403,24 +403,24 @@ export class Level5 extends Level {
       g.tip(LINES.level5Launcher);
       g.objective(OBJ.crossLake, new Vector3(0, 1.5, -3));
 
-      await new Promise<void>((resolve) => this.trigger(0, -74, 8, resolve));
+      await this.reachOrPass(0, -74, 8);
       this.pack(new Vector3(0, 0, -58), [
         [ELF_SKATER, 6],
         [ELF_BASIC, 4],
       ]);
       g.tip(LINES.level5Skaters);
-      await new Promise<void>((resolve) => this.trigger(0, -52, 9, resolve));
+      await this.reachOrPass(0, -52, 9);
       this.pack(new Vector3(-4, 0, -36), [
         [ELF_SKATER, 4],
         [ELF_BASIC, 2],
       ]);
-      await new Promise<void>((resolve) => this.trigger(0, -38, 9, resolve));
+      await this.reachOrPass(0, -38, 9);
       g.tip(LINES.level5Globe);
       this.pack(new Vector3(4, 0, -20), [
         [ELF_SKATER, 4],
         [ELF_BASIC, 2],
       ]);
-      await new Promise<void>((resolve) => this.trigger(0, -6, 5, resolve));
+      await this.reachOrPass(0, -6, 5);
       g.tip(LINES.level5Gate);
     }
 
@@ -433,7 +433,7 @@ export class Level5 extends Level {
       onDefeat: () => this.bossDone?.(),
     });
     this.boss = this.zamboni;
-    await new Promise<void>((resolve) => this.trigger(0, GATE_Z + 3.5, 2.5, resolve));
+    await this.reachOrPass(0, GATE_Z + 3.5, 2.5);
     // Lock the gate behind Santa.
     if (this.gate) {
       this.gate.mesh.setEnabled(true);

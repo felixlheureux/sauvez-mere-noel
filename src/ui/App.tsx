@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
+import { sound } from "@/audio/Sound";
 import { Game } from "@/core/Game";
 import { GameContext } from "./GameContext";
 import { Hud } from "./screens/Hud";
@@ -34,7 +35,7 @@ export function App() {
         if (cancelled) return;
         setGame(g);
         // Handy for debugging from the browser console.
-        Object.assign(window, { game: g, store: useStore });
+        Object.assign(window, { game: g, store: useStore, sound });
         useStore.setState({ screen: "title" });
       })
       .catch((err) => {

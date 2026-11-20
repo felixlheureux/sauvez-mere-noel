@@ -367,7 +367,7 @@ export class Level4 extends Level {
       g.objective(OBJ.crossGrove, new Vector3(trailX(-24) + 2.5, 1.5, -24));
 
       // First pack: around the syrup spill.
-      await new Promise<void>((resolve) => this.trigger(trailX(-62), -62, 7, resolve));
+      await this.reachOrPass(trailX(-62), -62, 7);
       this.spawnPack(new Vector3(trailX(-53), 0, -53), [
         [ELF_BASIC, 3],
         [ELF_SPRINTER, 1],
@@ -375,7 +375,7 @@ export class Level4 extends Level {
       g.tip(LINES.level4Syrup);
 
       // Second: bombardiers on the woodpiles.
-      await new Promise<void>((resolve) => this.trigger(trailX(-44), -44, 7, resolve));
+      await this.reachOrPass(trailX(-44), -44, 7);
       for (const side of [-1, 1]) {
         const x = trailX(-34) + (side < 0 ? -7 : 7.5);
         const z = side < 0 ? -34 : -33;
@@ -392,7 +392,7 @@ export class Level4 extends Level {
       ]);
       g.tip(LINES.level4Bombers);
 
-      await new Promise<void>((resolve) => this.trigger(trailX(-24), -24, 4, resolve));
+      await this.reachOrPass(trailX(-24), -24, 4);
     }
 
     if (cp <= 1) {

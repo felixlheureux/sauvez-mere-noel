@@ -240,8 +240,33 @@ export class Game {
     this.player.rig.setEnabled(false);
     this.camRig.startOrbit(new Vector3(0, 2, 0), 26, 9, 0.05);
     sound.setDarkness(0);
+    sound.stopMusic(true);
+    sound.setTheme("jingle");
+    this.titleMusic();
     hud.set({ crosshair: false });
     if (showScreen) hud.set({ screen: "title" });
+  }
+
+  /**
+   * The carol on the title screen. Browsers keep audio off until the first click or key
+   * press, so on a fresh page it starts with that.
+   */
+  private titleMusic() {
+    const start = () => {
+      if (!this.inTitle || !useStore.getState().settings.music) return;
+      sound.unlock();
+      sound.startMusic();
+    };
+    if (sound.ready) start();
+    else {
+      const first = () => {
+        window.removeEventListener("pointerdown", first);
+        window.removeEventListener("keydown", first);
+        start();
+      };
+      window.addEventListener("pointerdown", first);
+      window.addEventListener("keydown", first);
+    }
   }
 
   /** Save where "Continuer" should pick up. */

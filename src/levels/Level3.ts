@@ -55,6 +55,20 @@ function terrainExact(x: number, z: number) {
   return h;
 }
 
+/**
+ * Height of Santa's feet `dist` metres past a ramp lip, flying at the tube's cruising speed
+ * (same launch and gravity as Player: up at 26, down at 26 × 1.6).
+ */
+function rampArc(lip: number, dist: number) {
+  const speed = 9.5;
+  const vy = 6.5 + speed * 0.32;
+  const t = dist / speed;
+  const up = vy / 26;
+  const y0 = slopeHeight(lip) + 1.6;
+  if (t <= up) return y0 + vy * t - 13 * t * t;
+  return y0 + (vy * vy) / 52 - 20.8 * (t - up) ** 2;
+}
+
 const GRID = { x0: -44, z0: -96, step: 0.5, nx: 177, nz: 441 };
 let heights: Float32Array | null = null;
 
@@ -171,23 +185,20 @@ export class Level3 extends Level {
       const x = centerX(z) + Math.sin(z * 0.2) * 3;
       this.candy(x, terrain(x, z) + 0.9, z);
     }
+    // On the arc a tube actually flies at cruising speed (the bells hang off it).
     LIPS.forEach((lip, i) => {
-      for (const [dz, dy] of [
-        [-3, 2.2],
-        [-6, 2.8],
-        [-9, 2.4],
-      ] as const) {
+      for (const dz of [-2.5, -5, -7.5]) {
         const z = lip + dz;
         const x = centerX(z);
-        if (!(i === 1 && dz === -6)) this.candy(x, terrain(x, z) + dy + 0.4, z);
+        if (!(i === 1 && dz === -5)) this.candy(x, rampArc(lip, -dz) + 0.8, z);
       }
     });
     // Bell 1: at the top of the second ramp's jump. Bell 2: off to the left of the
     // fourth ramp's jump (steer before the lip).
     const b1 = (LIPS[1] as number) - 6;
-    this.bell(centerX(b1), terrain(centerX(b1), b1) + 3.3, b1);
+    this.bell(centerX(b1), rampArc(LIPS[1] as number, 6) + 0.8, b1);
     const b2 = (LIPS[3] as number) - 6;
-    this.bell(centerX(b2) + 3.6, terrain(centerX(b2) + 3.6, b2) + 2.8, b2);
+    this.bell(centerX(b2) + 3.6, rampArc(LIPS[3] as number, 6) + 0.8, b2);
 
     // The basin at the bottom: cover, a warming hut, rewards.
     const hy = terrain(-13, -78);

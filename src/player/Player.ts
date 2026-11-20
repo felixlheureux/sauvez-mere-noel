@@ -1198,9 +1198,10 @@ export class Player {
       r.lateral *= -0.3;
       g.camRig.shake(0.06);
     }
-    // Ramp lips launch you.
+    // Ramp lips launch you. Checked 30 cm before the drop: right at the lip the tube can
+    // already be leaving the snow, and then it would just slide off without a jump.
     for (const lip of t.lips) {
-      if (r.prevZ > lip && z <= lip && b.grounded) {
+      if (r.prevZ > lip + 0.3 && z <= lip + 0.3 && b.grounded) {
         v.y = 6.5 + r.speed * 0.32;
         b.grounded = false;
         this.launched = true;
@@ -1218,7 +1219,8 @@ export class Player {
       g.fx.puff(b.position.add(new Vector3(0, 0.25, 1.1)), "white", 2, 0.8);
     const travel = Math.atan2(v.x, v.z);
     this.yaw = dampAngle(this.yaw, travel, 10, dt);
-    g.camRig.yaw = dampAngle(g.camRig.yaw, travel, 2.2, dt);
+    // Follow the run, unless the player is aiming around with the mouse.
+    if (g.camRig.lookIdle > 1.5) g.camRig.yaw = dampAngle(g.camRig.yaw, travel, 2.2, dt);
     g.camRig.kickFov(0.06 + (r.speed - 7) * 0.01);
     r.tube.position.copyFrom(b.position);
     r.tube.position.y += 0.28;

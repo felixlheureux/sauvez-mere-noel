@@ -18,14 +18,28 @@ async def main():
         page.on("pageerror", lambda e: errors.append(str(e)))
         await page.goto(URL); await until(page, READY)
 
-        # Level 6: Santa on the next roof; the elf won't step off into the slush street.
+        # Level 6: Santa on the next roof; the elf leaps every roof gap on the route and lands.
         await load(page, 6); await skip_cutscene(page, 30)
+        from_ = await page.evaluate("async () => (await import('/src/levels/Level6.ts')).JUMPS.map(j => ({f: j.from, t: j.to, double: j.double}))")
+        for j in from_:
+            f, t = j["f"], j["t"]
+            r = await page.evaluate("async ([f, t]) => { " + PRE + """
+              const dir = Math.sign((t.z - f.z) || 1), side = Math.abs(t.z - f.z) > Math.abs(t.x - f.x);
+              b.position.set(t.x, t.h + 0.05, t.z); b.velocity.setAll(0);
+              const sx = side ? f.x : f.x - Math.sign(t.x - f.x) * (f.w / 2 - 1.2), sz = side ? f.z - dir * (f.d / 2 - 1.2) : f.z;
+              const e = chaser(sx, f.h + 0.1, sz); let minY = 99, k = 0;
+              for (; k < 400; k++) { minY = Math.min(minY, e.body.position.y); if (e.body.grounded && Math.abs(e.body.position.x - t.x) < t.w / 2 && Math.abs(e.body.position.z - t.z) < t.d / 2 && e.body.position.y > t.h - 0.3) break; await frames(1); }
+              const p = e.body.position; const on = Math.abs(p.x - t.x) < t.w / 2 && Math.abs(p.z - t.z) < t.d / 2 && p.y > t.h - 0.3;
+              return {alive: e.alive, on, minY: +minY.toFixed(2), s: +(k / 60).toFixed(1), gap: +(Math.max(Math.abs(t.z - f.z) - (t.d + f.d) / 2, Math.abs(t.x - f.x) - (t.w + f.w) / 2)).toFixed(1), up: +(t.h - f.h).toFixed(1)}; }""", [f, t])
+            check(f"Rooftops: an elf leaps the {r['gap']} m gap (up {r['up']}) to Santa's roof and lands", r["alive"] and r["on"], str(r))
+
+        # ...but with no roof across (Santa down in the street), it stays up.
         r = await page.evaluate("async () => { " + PRE + """
-          b.position.set(0, 7.85, -41); b.velocity.setAll(0);
+          b.position.set(-6, 0.5, -46.5); b.velocity.setAll(0);
           const e = chaser(0, 7, -51); let minY = 99;
           for (let i = 0; i < 240; i++) { minY = Math.min(minY, e.body.position.y); await frames(1); }
-          return {alive: e.alive, minY: +minY.toFixed(2), z: +e.body.position.z.toFixed(2)}; }""")
-        check("Rooftops: an elf chasing across a gap stops at the edge (no jump into the slush)", r["alive"] and r["minY"] > 6.5, str(r))
+          return {alive: e.alive, minY: +minY.toFixed(2)}; }""")
+        check("Rooftops: with Santa in the slush street, the elf doesn't jump off the roof", r["alive"] and r["minY"] > 6.5, str(r))
 
         # Level 9: Santa a tier below; the elf follows him down.
         await load(page, 9); await skip_cutscene(page, 30)

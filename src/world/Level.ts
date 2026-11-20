@@ -353,6 +353,19 @@ export abstract class Level {
     return n;
   }
 
+  /**
+   * Resolves once Santa is within `radius` of (x, z), or already past it going toward +z
+   * (the way every route runs): running ahead never means walking back to a marker.
+   */
+  protected async reachOrPass(x: number, z: number, radius: number) {
+    const g = this.game;
+    for (;;) {
+      const p = g.player.body.position;
+      if (Math.hypot(p.x - x, p.z - z) < radius || p.z > z) return;
+      await g.wait(0.1);
+    }
+  }
+
   protected trigger(x: number, z: number, radius: number, onEnter: () => void, once = true) {
     const t: Trigger = {
       pos: new Vector3(x, 0, z),
