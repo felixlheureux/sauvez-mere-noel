@@ -343,19 +343,20 @@ export class Game {
     if (this.inTitle || this.paused || useStore.getState().screen !== "playing") return;
     this.paused = true;
     hud.set({ screen: "paused" });
+    this.input.lockOnKey = false;
     this.input.exitPointerLock();
   }
 
   /**
-   * `grabMouse`: re-lock the cursor (from a click — the Resume button). Resuming with Esc
-   * doesn't: Chrome treats that same Esc as "release the mouse", so a lock taken now is
-   * dropped at once and the menu pops straight back. "Clique pour jouer" re-locks instead.
+   * `grabMouse`: re-lock the cursor (from a click — the Resume button). Esc can't: it
+   * isn't a user gesture, so the next key the player presses (or a click) grabs it.
    */
   resume(grabMouse = true) {
     if (!this.paused) return;
     this.paused = false;
     hud.set({ screen: "playing" });
     if (grabMouse) this.input.requestPointerLock();
+    else this.input.lockOnKey = true;
   }
 
   /** Level finished: freeze, show the score card, save progress. */

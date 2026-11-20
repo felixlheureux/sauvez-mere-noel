@@ -39,6 +39,11 @@ export class Input {
   sensitivity = 1;
   invertY = false;
   enabled = true;
+  /**
+   * Grab the mouse on the next key press. Esc isn't a user gesture, so resuming with it
+   * can't lock the cursor; any other key is, so the first one the player presses does.
+   */
+  lockOnKey = false;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     window.addEventListener("keydown", this.onKeyDown);
@@ -146,6 +151,10 @@ export class Input {
   }
 
   private readonly onKeyDown = (e: KeyboardEvent) => {
+    if (this.lockOnKey && e.code !== "Escape") {
+      if (this.pointerLocked) this.lockOnKey = false;
+      else this.requestPointerLock();
+    }
     if (e.repeat) return;
     if (e.code === "Space" || e.code.startsWith("Arrow")) e.preventDefault();
     this.down.add(e.code);
