@@ -413,6 +413,9 @@ export class Level10 extends Level {
       e.perched = ph.perched ?? false;
       e.body.position.copyFrom(at);
       e.body.velocity.setAll(0);
+      // A push left over from the last phase (a charge, a hit) would carry him off the perch.
+      e.knock.setAll(0);
+      e.leaping = false;
       e.yaw = yaw;
       g.fx.puff(at.add(new Vector3(0, 1.2, 0)), "coal", 30, 1.6);
     }

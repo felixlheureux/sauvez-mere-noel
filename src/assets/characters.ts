@@ -276,7 +276,7 @@ export function createFouettard(scene: Scene, mats: Materials): Rig {
       shoulderX: 0.44,
       shoulderY: 0.58,
       hand: 0.56,
-      hatTip: [0, 0.9, -0.24],
+      hatTip: [0, 1.05, -0.1],
     }),
     2.0,
   );
@@ -307,9 +307,12 @@ export function createFouettard(scene: Scene, mats: Materials): Rig {
       glow: true,
       glowStrength: 1.6,
     })
-    .part("head", cone(0.12, 0.34, 5), "coal", { pos: [-0.18, 0.46, 0], rot: [0, 0, 25] })
-    .part("head", cone(0.12, 0.34, 5), "coal", { pos: [0.18, 0.46, 0], rot: [0, 0, -25] })
-    .part("head", cone(0.5, 0.7, 6), "black", { pos: [0, 0.62, -0.1], rot: [-28, 0, 0] });
+    .part("head", cone(0.12, 0.34, 5), "coal", { pos: [-0.26, 0.4, 0], rot: [0, 0, 55] })
+    .part("head", cone(0.12, 0.34, 5), "coal", { pos: [0.26, 0.4, 0], rot: [0, 0, -55] })
+    // The hat sits down over the skull (wider than the head), barely tipped back, on a
+    // brim that closes it underneath: no head poking through, nothing to see up inside.
+    .part("head", cyl(0.66, 0.66, 0.05, 10), "black", { pos: [0, 0.36, 0] })
+    .part("head", cone(0.52, 0.7, 6), "black", { pos: [0, 0.71, -0.05], rot: [-8, 0, 0] });
   b.part("hatTip", sphere(0.16, 2), "darkGrey");
   for (const side of ["armL", "armR"] as const) {
     b.part(side, cyl(0.2, 0.16, 0.52), "plum", { pos: [0, -0.26, 0] }).part(

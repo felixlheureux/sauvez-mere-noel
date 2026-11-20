@@ -387,6 +387,14 @@ export class EnemyManager {
         }
       }
       const v = e.body.velocity;
+      // Perched (throwers on a roof, Fouettard in his tree): rooted to the spot, so hits,
+      // blasts and crowding elves can't push it off.
+      if (e.perched) {
+        wish.setAll(0);
+        e.knock.setAll(0);
+        v.x = 0;
+        v.z = 0;
+      }
       // Pounce up onto ledges when Santa is above them.
       if (
         e.state === "chase" &&

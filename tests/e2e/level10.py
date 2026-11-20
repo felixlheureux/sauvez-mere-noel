@@ -102,8 +102,20 @@ async def main():
           let t = 0, dazed = false, maxY = 0; while (t++ < 400) { maxY = Math.max(maxY, e.body.position.y); if (e.stunned) { dazed = true; break; } await frames(1); }
           b.position.set(0, 0, -20); return {dazed, maxY: +maxY.toFixed(2)}; }""")
         check("Charging into a house, he's stopped on the ground (never on or in it)", r["dazed"] and r["maxY"] < 0.6, str(r))
+        # Mid-charge when phase 2 ends: a big push still pending on him.
+        await page.evaluate("() => { const e = " + BOSS + "; e.knock.set(14, 0, 9); }")
         ok, bar = await end_phase(3)
         check("At 0 HP, phase 3 (the tree) starts right away", ok, str(bar))
+        r = await page.evaluate("""async () => { const e = """ + BOSS + """; const V = e.body.position.constructor;
+          const frames = (n) => new Promise(r => { let k = 0; const f = () => (++k >= n ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); });
+          let w = 0; while (e.dormant && w++ < 1200) await frames(1);
+          let minY = 99;
+          for (let i = 0; i < 240; i++) {
+            if (i % 30 === 0) { game.enemies.hit(e, 5, e.body.position.add(new V(1, 0, 1)), 'bullet', 9); game.projectiles.explode(e.center.add(new V(0.8, 0, 0)), 3, 0, 0.1); }
+            minY = Math.min(minY, e.body.position.y); await frames(1);
+          }
+          return {awake: !e.dormant, perched: e.perched, minY: +minY.toFixed(2)}; }""")
+        check("Phase 3: he stays up in his tree (a leftover push, hits and blasts don't knock him off)", r["awake"] and r["perched"] and r["minY"] > 6.5, str(r))
         await page.screenshot(path="out/l10_02_phase3.png")
         r = await page.evaluate("async () => { const e = " + BOSS + "; const hp = e.hp; game.enemies.hit(e, 50, e.body.position, 'bullet', 0); return {perched: e.perched, hp: e.hp, before: hp}; }")
         check("Phase 3: perched in the tree, he can't be hurt", r["perched"] and r["hp"] == r["before"], str(r))
