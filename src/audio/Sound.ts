@@ -382,7 +382,7 @@ const freq = (semi: number, base = 523.25) => base * 2 ** (semi / 12);
 /** The volume slider's 100% maps to this gain (about -15 dB): a fight measured -11.5 dBFS RMS
  *  and clipped at full gain (tests/e2e/loudness.py). */
 const HEADROOM = 0.18;
-const MUSIC_GAIN = 0.24;
+const MUSIC_GAIN = 0.07;
 /** Carols in the order they rotate in after each rest. */
 const ROTATION: Theme[] = ["jingle", "wewish", "reel", "anges", "silent"];
 
@@ -595,7 +595,7 @@ export class Sound {
     const g = ctx.createGain();
     o.frequency.setValueAtTime(140, t);
     o.frequency.exponentialRampToValueAtTime(40, t + 0.15);
-    g.gain.setValueAtTime(0.5 * amt, t);
+    g.gain.setValueAtTime(0.3 * amt, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
     o.connect(g).connect(this.musicBus);
     o.start(t);
@@ -670,13 +670,16 @@ export class Sound {
     this.tone("sine", 200, 900, 0.25, 0.25);
   }
   capGun() {
-    this.burst(0.08, 2800, 0.7, 0.45, "highpass");
+    this.burst(0.08, 2800, 0.7, 0.5, "highpass");
+    this.burst(0.12, 600, 0.7, 0.4, "lowpass");
     this.tone("square", 900, 200, 0.05, 0.08);
+    this.tone("sine", 180, 50, 0.12, 0.45);
   }
   shotgun() {
-    this.burst(0.35, 900, 0.5, 0.7, "lowpass");
-    this.burst(0.12, 3000, 0.7, 0.4, "highpass");
-    this.tone("sine", 110, 40, 0.3, 0.5);
+    this.burst(0.45, 900, 0.5, 0.8, "lowpass");
+    this.burst(0.15, 3000, 0.7, 0.5, "highpass");
+    this.tone("sine", 120, 35, 0.4, 0.8);
+    this.burst(0.6, 400, 0.5, 0.25, "lowpass", 0.08);
   }
   pump() {
     this.burst(0.05, 1800, 2, 0.25, "bandpass", 0.25);
@@ -774,7 +777,8 @@ export class Sound {
     this.burst(0.5, 6000, 0.8, 0.15, "highpass");
   }
   launcher() {
-    this.tone("sine", 260, 90, 0.18, 0.35);
+    this.tone("sine", 200, 45, 0.25, 0.65);
+    this.burst(0.25, 700, 0.6, 0.45, "lowpass");
     this.burst(0.18, 1200, 0.7, 0.25);
   }
   slapshot() {
@@ -804,7 +808,8 @@ export class Sound {
     this.tone("square", 1800, 1800, 0.05, 0.06);
   }
   flame() {
-    this.burst(0.12, 900, 0.5, 0.12, "bandpass");
+    this.burst(0.15, 900, 0.5, 0.16, "bandpass");
+    this.burst(0.2, 250, 0.6, 0.22, "lowpass");
   }
   boil() {
     this.tone("sine", 200 + Math.random() * 300, 600, 0.06, 0.03);
@@ -837,7 +842,8 @@ export class Sound {
   /** Arbalète à Cannes: a taut string twang and a whoosh. */
   twang() {
     this.tone("triangle", 220, 140, 0.18, 0.3);
-    this.burst(0.1, 1800, 1, 0.25);
+    this.tone("sine", 140, 45, 0.15, 0.45);
+    this.burst(0.1, 1800, 1, 0.3);
   }
   /** A possessed reindeer snorting before it charges. */
   snort() {
@@ -849,7 +855,8 @@ export class Sound {
   zap() {
     this.tone("sawtooth", 1800, 120, 0.16, 0.12);
     this.tone("square", 90, 60, 0.12, 0.1);
-    this.burst(0.08, 4000, 1.4, 0.3, "highpass");
+    this.burst(0.08, 4000, 1.4, 0.35, "highpass");
+    this.tone("sine", 130, 40, 0.15, 0.4);
   }
   /** A stamping press slamming down. */
   press() {
@@ -865,11 +872,13 @@ export class Sound {
   icicle() {
     this.burst(0.07, 3200, 1.1, 0.5, "highpass");
     this.tone("sine", 2600, 1400, 0.25, 0.12);
-    this.tone("triangle", 180, 60, 0.12, 0.3);
+    this.tone("sine", 160, 40, 0.18, 0.6);
   }
   smg() {
-    this.burst(0.04, 2200, 1, 0.22);
-    this.tone("square", 700, 300, 0.03, 0.04);
+    this.burst(0.05, 2200, 1, 0.3);
+    this.burst(0.07, 500, 0.7, 0.25, "lowpass");
+    this.tone("square", 700, 300, 0.03, 0.05);
+    this.tone("sine", 150, 50, 0.07, 0.35);
   }
   whooshLong() {
     this.burst(0.6, 900, 0.7, 0.18);
