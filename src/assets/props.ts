@@ -1523,10 +1523,12 @@ export class PropFactory {
   plex(w: number, d: number, h: number, seed = 1): Mesh {
     const rand = mulberry32(seed);
     const brick = pick(rand, ["brick", "brickDark", "brick", "ginger"] as const);
+    // No two faces share a plane (that flickers, z-fighting): the walls stop under the
+    // cornice, and the snow lies a clear 8 cm on top of it.
     const b = this.b("plex")
-      .part("m", box(w, h, d), brick, { pos: [0, h / 2, 0] })
+      .part("m", box(w, h - 0.32, d), brick, { pos: [0, (h - 0.32) / 2, 0] })
       .part("m", box(w + 0.24, 0.32, d + 0.24), "icing", { pos: [0, h - 0.16, 0] })
-      .part("m", box(w - 0.2, 0.06, d - 0.2), "snow", { pos: [0, h - 0.02, 0] });
+      .part("m", box(w - 0.2, 0.08, d - 0.2), "snow", { pos: [0, h + 0.04, 0] });
     for (let y = 1.7; y < h - 1.2; y += 2.5) {
       // [length the windows spread over, depth across to the face, axis they spread along]:
       // the faces at x = ±w/2 run along z (length d); the faces at z = ±d/2 run along x.
@@ -1618,7 +1620,7 @@ export class PropFactory {
   /** A factory wall section (w × h × d), dark brick with a steel cap and high lit windows. */
   factoryWall(w: number, h: number, d: number): Mesh {
     const b = this.b("fwall")
-      .part("m", box(w, h, d), "brickDark", { pos: [0, h / 2, 0] })
+      .part("m", box(w, h - 0.3, d), "brickDark", { pos: [0, (h - 0.3) / 2, 0] })
       .part("m", box(w + 0.1, 0.3, d + 0.1), "steel", { pos: [0, h - 0.15, 0] });
     const long = Math.max(w, d);
     const n = Math.floor(long / 4);
@@ -1868,8 +1870,8 @@ export class PropFactory {
     for (let t = -long / 2 + 0.5; t < long / 2; t += 1) {
       const burnt = rand() < 0.35;
       const [sx, sz] = size(0.12, thick + 0.04);
-      b.part("m", box(sx, h, sz), burnt ? "coal" : "brown", {
-        pos: alongX ? [t, h / 2, 0] : [0, h / 2, t],
+      b.part("m", box(sx, h + 0.04, sz), burnt ? "coal" : "brown", {
+        pos: alongX ? [t, h / 2 + 0.02, 0] : [0, h / 2 + 0.02, t],
       });
       if (burnt && rand() < 0.5) {
         const [ex, ez] = size(0.3, thick + 0.06);

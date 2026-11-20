@@ -393,6 +393,14 @@ export class Elf {
 
   /** Direction locked in at the start of a charge. */
   readonly chargeDir = new Vector3();
+  /** Seconds spent pushing into something without getting anywhere. */
+  stuckTime = 0;
+  /** While > 0, walking round an obstacle along `detourDir` (until the way is clear). */
+  detourTime = 0;
+  readonly detourDir = new Vector3();
+  /** Which way it last went round (±1), remembered for a few seconds so it doesn't dither. */
+  detourSide = 0;
+  detourMemory = 0;
 
   /** A charge that hit a wall: stop dead, dazed. */
   daze() {

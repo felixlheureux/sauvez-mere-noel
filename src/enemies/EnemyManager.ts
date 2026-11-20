@@ -25,6 +25,9 @@ interface PendingSpawn {
   tuning: ElfTuning;
 }
 
+/** Longest an elf follows an obstacle sideways before trying straight at Santa again. */
+const DETOUR_MAX = 3;
+
 export class EnemyManager {
   readonly elves: Elf[] = [];
   private readonly pending: PendingSpawn[] = [];
@@ -43,6 +46,67 @@ export class EnemyManager {
     for (const p of this.pending) p.gift.dispose();
     this.pending.length = 0;
     this.kills = 0;
+  }
+
+  /**
+   * Ledges: an elf won't step off a drop of more than 1.6 m if the fall would kill it
+   * (slush, water, the grinder), nor at all unless Santa is down there. It slides along
+   * the edge instead. (Being knocked off is another matter.)
+   */
+  private guardLedge(e: Elf, wish: Vector3, ppos: Vector3) {
+    if (!e.body.grounded || e.perched) return;
+    const g = this.game;
+    const p = e.body.position;
+    const safe = (dx: number, dz: number) => {
+      const l = Math.hypot(dx, dz);
+      if (l < 0.1) return true;
+      const x = p.x + (dx / l) * (e.body.radius + 0.5);
+      const z = p.z + (dz / l) * (e.body.radius + 0.5);
+      const below = g.physics.groundHeightAt(x, z, p.y + 0.4);
+      if (g.level.deadlyGround(x, z, below)) return false;
+      if (p.y - below < 1.6) return true;
+      return ppos.y < p.y - 1.5;
+    };
+    if (safe(wish.x, wish.z)) return;
+    if (safe(wish.x, 0)) wish.z = 0;
+    else if (safe(0, wish.z)) wish.x = 0;
+    else wish.setAll(0);
+  }
+
+  /** Nothing in the way for the next few metres toward Santa? */
+  private wayClear(e: Elf, ppos: Vector3) {
+    const from = e.body.position.add(new Vector3(0, 0.5, 0));
+    const to = ppos.subtract(e.body.position);
+    to.y = 0;
+    const d = Math.min(3, to.length());
+    if (d < 0.5) return true;
+    return this.game.physics.raycast(from, to.normalize(), d) >= d - 0.1;
+  }
+
+  /**
+   * Stuck against something: follow it sideways (toward the more open side, or the same
+   * side as last time) until the way to Santa is clear.
+   */
+  private startDetour(e: Elf, ppos: Vector3) {
+    const g = this.game;
+    const eyes = e.body.position.add(new Vector3(0, 0.6, 0));
+    const to = ppos.subtract(e.body.position);
+    to.y = 0;
+    if (to.lengthSquared() < 0.01) return;
+    to.normalize();
+    const left = new Vector3(-to.z, 0, to.x);
+    const right = left.scale(-1);
+    const l = g.physics.raycast(eyes, left, 5);
+    const r = g.physics.raycast(eyes, right, 5);
+    if (Math.max(l, r) < 1) {
+      e.detourDir.copyFrom(to.scale(-1));
+    } else {
+      if (e.detourMemory <= 0) e.detourSide = l >= r ? 1 : -1;
+      e.detourDir.copyFrom(e.detourSide > 0 ? left : right);
+    }
+    e.detourTime = DETOUR_MAX;
+    e.detourMemory = 4;
+    e.stuckTime = 0;
   }
 
   /** Cancel the evil gifts still on their way down (nothing comes out of them). */
@@ -241,6 +305,18 @@ export class EnemyManager {
         wish.x *= slow;
         wish.z *= slow;
       }
+      // Going round an obstacle: follow it until the way to Santa is open again.
+      e.detourMemory = Math.max(0, e.detourMemory - dt);
+      if (e.detourTime > 0) {
+        e.detourTime -= dt;
+        if (e.detourTime < DETOUR_MAX - 0.4 && this.wayClear(e, ppos)) e.detourTime = 0;
+        const sp = Math.hypot(wish.x, wish.z);
+        if (sp > 0.1) {
+          wish.x = e.detourDir.x * sp;
+          wish.z = e.detourDir.z * sp;
+        }
+      }
+      this.guardLedge(e, wish, ppos);
       // Don't walk into the water.
       const wl = Math.hypot(wish.x, wish.z);
       if (wl > 0.1) {
@@ -299,7 +375,22 @@ export class EnemyManager {
       if (e.knock.length() > 4 && g.level.elfIntoHazard(e)) continue;
       e.knock.scaleInPlace(Math.exp(-8 * dt));
       v.y -= GRAVITY * dt;
+      const bx = e.body.position.x;
+      const bz = e.body.position.z;
       const moved = g.physics.move(e.body, dt);
+      // Pushing into something without getting anywhere: go round it.
+      const want = Math.hypot(wish.x, wish.z);
+      if (
+        e.state === "chase" &&
+        e.body.grounded &&
+        want > 1 &&
+        e.detourTime <= 0 &&
+        e.knock.length() < 1
+      ) {
+        const got = Math.hypot(e.body.position.x - bx, e.body.position.z - bz) / dt;
+        e.stuckTime = got < want * 0.3 ? e.stuckTime + dt : 0;
+        if (e.stuckTime > 0.4) this.startDetour(e, ppos);
+      }
       // A charging reindeer that hits a wall or a post is left dazed.
       if (moved.hitWall && e.state === "attack" && e.attackKind === "lunge" && e.tuning.charge) {
         e.daze();

@@ -519,6 +519,11 @@ export class Level7 extends Level {
     this.updatePresses();
   }
 
+  /** Elves don't walk into the grinder on their own (the belts may carry them in). */
+  override deadlyGround(x: number, z: number, y: number) {
+    return this.inGrinder(new Vector3(x, y, z)) || super.deadlyGround(x, z, y);
+  }
+
   private inGrinder(p: Vector3) {
     return (
       Math.abs(p.x - GRINDER.x) < GRINDER.w / 2 &&

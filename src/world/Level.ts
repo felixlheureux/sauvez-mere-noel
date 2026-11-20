@@ -950,6 +950,11 @@ export abstract class Level {
   }
 
   /** An elf knocked hard into a hazard. Returns true if it died. */
+  /** Would landing on the ground at (x, z), height y, kill an elf? (They won't walk off into it.) */
+  deadlyGround(_x: number, _z: number, y: number) {
+    return y < this.killY + 0.5;
+  }
+
   elfIntoHazard(e: import("../enemies/Elf").Elf) {
     for (const c of this.cauldrons) {
       if (flatDistance(e.body.position, c.pos) < c.radius + 0.9) {

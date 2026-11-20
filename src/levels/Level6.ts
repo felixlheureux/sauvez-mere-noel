@@ -449,6 +449,11 @@ export class Level6 extends Level {
     }
   }
 
+  /** The street is all slush: no elf walks off a roof into it on purpose. */
+  override deadlyGround(_x: number, _z: number, y: number) {
+    return y < SLUSH_Y;
+  }
+
   /** Hurt, and back up onto the last roof you stood on (a step in from its edge). */
   private fellInSlush() {
     const g = this.game;

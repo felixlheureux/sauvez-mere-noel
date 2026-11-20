@@ -2,6 +2,7 @@ import { Bell, Crosshair, MousePointerClick } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { sound } from "@/audio/Sound";
+import type { ScreenPoint } from "@/core/Game";
 import { BUFF_TEXT, CONTROLS, SPEAKERS, T, WEAPON_NAMES } from "@/i18n/fr-QC";
 import { Badge } from "@/ui/components/badge";
 import { Kbd } from "@/ui/components/kbd";
@@ -179,28 +180,7 @@ function ObjectiveMarker() {
         el.style.opacity = "0";
         return;
       }
-      const W = window.innerWidth;
-      const H = window.innerHeight;
-      const m = 56;
-      let { x, y } = s;
-      const onScreen = s.ahead && x > m && x < W - m && y > m && y < H - m;
-      let angle = 0;
-      if (!onScreen) {
-        // Direction from screen centre; behind the camera, flip it.
-        let dx = x - W / 2;
-        let dy = y - H / 2;
-        if (!s.ahead) {
-          dx = -dx;
-          dy = Math.abs(dy) + H;
-        }
-        angle = Math.atan2(dy, dx);
-        const k = Math.min(
-          (W / 2 - m) / Math.abs(Math.cos(angle) || 1e-6),
-          (H / 2 - m) / Math.abs(Math.sin(angle) || 1e-6),
-        );
-        x = W / 2 + Math.cos(angle) * k;
-        y = H / 2 + Math.sin(angle) * k;
-      }
+      const { x, y, onScreen, angle } = pinToScreen(s);
       el.style.opacity = "1";
       el.style.transform = `translate(${x}px, ${y}px)`;
       if (label.current) label.current.textContent = `${Math.round(s.dist)} m`;
@@ -231,6 +211,90 @@ function ObjectiveMarker() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * A screen point, or — when it's off screen or behind the camera — pinned to the screen
+ * edge in its direction (with the angle for an arrow).
+ */
+function pinToScreen(s: ScreenPoint, m = 56) {
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  let { x, y } = s;
+  const onScreen = s.ahead && x > m && x < W - m && y > m && y < H - m;
+  let angle = 0;
+  if (!onScreen) {
+    // Direction from screen centre; behind the camera, flip it.
+    let dx = x - W / 2;
+    let dy = y - H / 2;
+    if (!s.ahead) {
+      dx = -dx;
+      dy = Math.abs(dy) + H;
+    }
+    angle = Math.atan2(dy, dx);
+    const k = Math.min(
+      (W / 2 - m) / Math.abs(Math.cos(angle) || 1e-6),
+      (H / 2 - m) / Math.abs(Math.sin(angle) || 1e-6),
+    );
+    x = W / 2 + Math.cos(angle) * k;
+    y = H / 2 + Math.sin(angle) * k;
+  }
+  return { x, y, onScreen, angle };
+}
+
+/**
+ * The last few enemies, once they've been hard to find for a while: a red marker over
+ * each, or an arrow at the screen edge pointing to it.
+ */
+function StragglerMarkers() {
+  const game = useGame();
+  const refs = useRef<(HTMLDivElement | null)[]>([]);
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      const marks = game?.stragglerScreens() ?? [];
+      refs.current.forEach((el, i) => {
+        if (!el) return;
+        const s = marks[i];
+        if (!s) {
+          el.style.opacity = "0";
+          return;
+        }
+        const { x, y, onScreen, angle } = pinToScreen(s, 40);
+        el.style.opacity = "1";
+        el.style.transform = `translate(${x}px, ${y}px)`;
+        const arrow = el.firstElementChild as HTMLElement | null;
+        if (arrow) {
+          arrow.style.opacity = onScreen ? "0" : "1";
+          arrow.style.transform = `rotate(${angle}rad) translateX(20px)`;
+        }
+      });
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [game]);
+  return (
+    <>
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+          className="pointer-events-none absolute top-0 left-0 opacity-0 transition-opacity"
+          style={{ willChange: "transform" }}
+        >
+          <div className="absolute -mt-2 -ml-2 size-4">
+            <div className="size-0 border-y-[8px] border-l-[14px] border-y-transparent border-l-red-500 drop-shadow" />
+          </div>
+          <div className="-translate-x-1/2 -translate-y-full animate-bounce">
+            <div className="size-0 border-x-[9px] border-t-[14px] border-x-transparent border-t-red-500 drop-shadow-[0_0_6px_rgba(255,40,60,0.9)]" />
+          </div>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -675,6 +739,7 @@ export function Hud() {
           <RageTint />
           <SpeedLines />
           <ObjectiveMarker />
+          <StragglerMarkers />
           <div className="absolute top-5 left-5 flex flex-col gap-2">
             <HealthBar />
             <Buffs />

@@ -33,6 +33,14 @@ import { clamp, pick } from "./math";
  * Guns you own when a level starts. Level 0 gives the candy cane; from Level 1 on,
  * Gérard leaves a new, bigger gun at the start of each level (cap gun, shotgun, …).
  */
+/** A point on screen (CSS pixels), its distance, and whether it's in front of the camera. */
+export interface ScreenPoint {
+  x: number;
+  y: number;
+  dist: number;
+  ahead: boolean;
+}
+
 export function gunsAtStart(levelId: number): GunId[] {
   return GUN_ORDER.filter((_, i) => i < levelId - 1);
 }
@@ -282,6 +290,7 @@ export class Game {
     this.camRig.pitch = 0.2;
     this.time = 0;
     level.startTime = 0;
+    this.quietTime = 0;
     this.comboCount = 0;
     sound.setDarkness(Math.min(1, level.darkness / 10 + (id > 0 ? 0.25 : 0)));
     sound.stopMusic();
@@ -503,13 +512,35 @@ export class Game {
   }
 
   /** Where the objective waypoint goes on screen (CSS pixels), or null. */
-  objectiveScreen(): { x: number; y: number; dist: number; ahead: boolean } | null {
+  objectiveScreen(): ScreenPoint | null {
     const t = this.objectiveTarget;
     if (!t || this.inTitle || this.paused || this.player.frozen) return null;
     const p = typeof t === "function" ? t() : t;
     if (!p) return null;
     const dist = Vector3.Distance(p, this.player.body.position);
     if (dist < 2.5) return null;
+    return this.toScreen(p, dist);
+  }
+
+  /** After this long with only 1–3 enemies left and none killed, they get markers. */
+  static readonly STRAGGLER_DELAY = 20;
+  private quietTime = 0;
+
+  /** Where the last few enemies are on screen, once they've been hard to find for a while. */
+  stragglerScreens(): ScreenPoint[] {
+    if (this.quietTime < Game.STRAGGLER_DELAY || this.inTitle || this.paused) return [];
+    const ppos = this.player.body.position;
+    return this.stragglers().map((e) =>
+      this.toScreen(e.center.add(new Vector3(0, 1.2, 0)), Vector3.Distance(e.center, ppos)),
+    );
+  }
+
+  private stragglers() {
+    return this.enemies.elves.filter((e) => e.alive && !e.dormant && !e.tuning.boss);
+  }
+
+  /** A world point in CSS pixels, and whether it's in front of the camera. */
+  private toScreen(p: Vector3, dist: number): ScreenPoint {
     const cam = this.camRig.camera;
     const w = this.engine.getRenderWidth();
     const h = this.engine.getRenderHeight();
@@ -569,6 +600,7 @@ export class Game {
   }
 
   private onKill(kind: string) {
+    this.quietTime = 0;
     this.comboCount = this.comboTimer > 0 ? this.comboCount + 1 : 1;
     this.comboTimer = 1.6;
     const now = performance.now();
@@ -765,6 +797,8 @@ export class Game {
       this.projectiles.update(dt);
     }
     if (dt > 0) {
+      const left = this.inTitle ? 0 : this.stragglers().length;
+      this.quietTime = left > 0 && left <= 3 ? this.quietTime + dt : 0;
       this.level.update(dt);
       this.gore.update(dt);
       this.fx.update(dt);
