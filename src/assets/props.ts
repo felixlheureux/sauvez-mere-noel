@@ -1517,18 +1517,19 @@ export class PropFactory {
 
   /**
    * Brick plex with a flat, snowy roof: the rooftop level's platforms. Origin on the
-   * street; the roof surface is at `h` (the cornice is flush with it, nothing to trip on).
+   * street; the roof surface (the snow on it) is at `h`.
    * Rows of windows on every face, some lit.
    */
   plex(w: number, d: number, h: number, seed = 1): Mesh {
     const rand = mulberry32(seed);
     const brick = pick(rand, ["brick", "brickDark", "brick", "ginger"] as const);
     // No two faces share a plane (that flickers, z-fighting): the walls stop under the
-    // cornice, and the snow lies a clear 8 cm on top of it.
+    // cornice, and the snow lies on the cornice. The snow's top is exactly `h`, where
+    // you stand, so blood pools land on it rather than under it.
     const b = this.b("plex")
       .part("m", box(w, h - 0.32, d), brick, { pos: [0, (h - 0.32) / 2, 0] })
-      .part("m", box(w + 0.24, 0.32, d + 0.24), "icing", { pos: [0, h - 0.16, 0] })
-      .part("m", box(w - 0.2, 0.08, d - 0.2), "snow", { pos: [0, h + 0.04, 0] });
+      .part("m", box(w + 0.24, 0.24, d + 0.24), "icing", { pos: [0, h - 0.2, 0] })
+      .part("m", box(w - 0.2, 0.08, d - 0.2), "snow", { pos: [0, h - 0.04, 0] });
     for (let y = 1.7; y < h - 1.2; y += 2.5) {
       // [length the windows spread over, depth across to the face, axis they spread along]:
       // the faces at x = ±w/2 run along z (length d); the faces at z = ±d/2 run along x.

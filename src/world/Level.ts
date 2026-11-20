@@ -388,6 +388,9 @@ export abstract class Level {
   ) {
     pos = this.settle(pos, radius > 0.6);
     this.place(mesh, pos.x, pos.z, { y: pos.y, shadow: false });
+    // Not a surface: blood pools land on the ground under it, not on it.
+    for (const m of [mesh, ...mesh.getChildMeshes(false)])
+      m.metadata = { ...m.metadata, noSplat: true };
     const p: Pickup = {
       mesh,
       pos: pos.clone(),
@@ -702,6 +705,7 @@ export abstract class Level {
         return m;
       });
       ring.parent = g.levelRoot;
+      ring.metadata = { ...ring.metadata, noSplat: true };
       ring.position.set(pos.x, floor + 0.04, pos.z);
       ring.scaling.setAll(o.ringSize ?? 1);
     }

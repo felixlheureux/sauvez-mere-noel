@@ -7,7 +7,10 @@ import {
   type Mesh,
   MeshBuilder,
   ParticleSystem,
+  Quaternion,
+  Ray,
   type Scene,
+  type TransformNode,
   Vector3,
   VertexBuffer,
 } from "@babylonjs/core";
@@ -77,6 +80,8 @@ export class Gore {
   private readonly rand = mulberry32(7);
   private readonly bloodTex: DynamicTexture;
   private readonly confettiTex: DynamicTexture;
+  /** The level's meshes: splats are painted on what you see there, not the physics. */
+  world: TransformNode | null = null;
 
   constructor(
     private readonly scene: Scene,
@@ -178,16 +183,45 @@ export class Gore {
       const old = this.decals.shift();
       old?.inst.dispose();
     }
-    const y = this.physics.groundHeightAt(pos.x, pos.z, pos.y + 0.3) + 0.015 + this.rand() * 0.01;
+    const { y, normal } = this.surfaceAt(pos);
     const inst = this.decalBase.createInstance("splat");
-    inst.position.set(pos.x, y, pos.z);
-    inst.rotation.y = this.rand() * Math.PI * 2;
+    inst.position.set(pos.x, y + 0.015 + this.rand() * 0.01, pos.z);
+    // Lying flat on the surface: a random spin on level ground, tilted to match a slope.
+    if (normal.y > 0.995) inst.rotation.y = this.rand() * Math.PI * 2;
+    else {
+      inst.rotationQuaternion = Quaternion.FromUnitVectorsToRef(
+        Vector3.Up(),
+        normal,
+        new Quaternion(),
+      );
+    }
     const s = size * this.settings.splatSize * randRange(this.rand, 0.7, 1.4);
     inst.scaling.set(0.01, 1, 0.01);
     inst.instancedBuffers.color = this.confetti
       ? (CONFETTI[Math.floor(this.rand() * CONFETTI.length)] as Color4)
       : new Color4(randRange(this.rand, 0.45, 0.62), 0, randRange(this.rand, 0.04, 0.09), 1);
     this.decals.push({ inst, life: this.settings.decalLife, target: s });
+  }
+
+  /**
+   * The visible surface under `pos`: the physics ground, or a level mesh drawn just above
+   * or below it (snow on a roof, a terrain mesh, a rink, a belt), so the pool isn't hidden.
+   */
+  private surfaceAt(pos: Vector3) {
+    const ground = this.physics.groundHeightAt(pos.x, pos.z, pos.y + 0.3);
+    const world = this.world;
+    if (world) {
+      const ray = new Ray(new Vector3(pos.x, ground + 0.5, pos.z), Vector3.Down(), 0.7);
+      const hit = this.scene.pickWithRay(
+        ray,
+        (m) => m.isVisible && m.isEnabled() && !m.metadata?.noSplat && m.isDescendantOf(world),
+      );
+      if (hit?.pickedPoint) {
+        const n = hit.getNormal(true) ?? Vector3.Up();
+        return { y: hit.pickedPoint.y, normal: n.y > 0.5 ? n : Vector3.Up() };
+      }
+    }
+    return { y: ground, normal: Vector3.Up() };
   }
 
   /** Blow a rig apart. `cut` = sliced in half (top flies, legs drop). */

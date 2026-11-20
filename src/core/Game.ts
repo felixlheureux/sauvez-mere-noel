@@ -134,6 +134,7 @@ export class Game {
     this.enemies = new EnemyManager(this);
     this.projectiles = new Projectiles(this);
     this.levelRoot = new TransformNode("level", this.scene);
+    this.gore.world = this.levelRoot;
     this.player = new Player(this);
     this.enemies.onKill = (e) => this.onKill(e);
     window.addEventListener("resize", () => this.engine.resize());
@@ -215,6 +216,7 @@ export class Game {
     this.physics.boundsCenter.set(0, 0, 0);
     this.levelRoot.dispose(false, false);
     this.levelRoot = new TransformNode("level", this.scene);
+    this.gore.world = this.levelRoot;
     hud.set({ dialogue: null, letterbox: false, objective: "", titleCard: null });
     this.objectiveTarget = null;
   }

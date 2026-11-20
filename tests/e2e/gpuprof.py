@@ -23,7 +23,7 @@ COMBAT = """async (gun) => { const g = game; const P = g.player.body.position; c
   for (const e of g.enemies.elves.filter(e => e.alive)) g.enemies.hit(e, 999, P, 'bullet', 3);
   await new Promise(r => setTimeout(r, 3000)); clearInterval(poll);
   return {worst: Math.max(...worst), minFps: Math.min(...fps)}; }"""
-GUN = {0: "capgun", 1: "capgun", 2: "shotgun", 3: "smg", 4: "flamer", 5: "launcher"}
+GUN = {0: "capgun", 1: "capgun", 2: "shotgun", 3: "smg", 4: "flamer", 5: "launcher", 6: "icicle", 7: "garland", 8: "crossbow", 9: "gatling", 10: "star"}
 async def sample(page):
     await gwait(page, 1.6)
     rows = []
@@ -32,7 +32,9 @@ async def sample(page):
         rows.append(await page.evaluate("() => ({...game.perf})"))
     return {k: sum(r[k] for r in rows) / len(rows) for k in rows[0]}
 async def main():
-    levels = [int(a) for a in sys.argv[1:]] or [0, 1, 2, 3, 4, 5]
+    # --quick: baseline and combat only (no per-effect toggles).
+    quick = "--quick" in sys.argv
+    levels = [int(a) for a in sys.argv[1:] if a != "--quick"] or list(range(11))
     async with async_playwright() as p:
         b = await p.chromium.launch(args=["--use-angle=metal", "--ignore-gpu-blocklist", "--enable-gpu", "--disable-frame-rate-limit", "--disable-gpu-vsync"])
         page = await b.new_page(viewport={"width": 1470, "height": 956}, device_scale_factor=2)
@@ -46,6 +48,7 @@ async def main():
             print(f"\n== Level {lvl}")
             await gwait(page, 3)  # warm-up: shaders, first frames
             for name, (on, off) in TOGGLES.items():
+                if quick and name != "base": continue
                 if on: await page.evaluate(f"() => {{ {on}; }}")
                 r = await sample(page)
                 if off: await page.evaluate(f"() => {{ {off}; }}")
