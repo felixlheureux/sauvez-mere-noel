@@ -197,6 +197,19 @@ export class Game {
     return m;
   }
 
+  /**
+   * Big single meshes (the terrain on levels 2 and 3) are split into chunks with an
+   * octree, so a raycast (where a blood pool lands) tests one chunk, not 17k triangles.
+   */
+  private chunkBigMeshes() {
+    for (const m of this.levelRoot.getChildMeshes(false)) {
+      const tris = m.getTotalIndices() / 3;
+      if (tris < 4000 || !("subdivide" in m)) continue;
+      (m as Mesh).subdivide(Math.ceil(tris / 1500));
+      m.createOrUpdateSubmeshesOctree(32, 2);
+    }
+  }
+
   hitstop(t: number) {
     this.hitstopTimer = Math.max(this.hitstopTimer, t);
   }
@@ -303,6 +316,10 @@ export class Game {
     this.physics.boundsRadius = level.arenaRadius;
     level.build();
     level.built = true;
+    this.chunkBigMeshes();
+    // Compile every shader the level needs while the screen is still black: otherwise
+    // each new thing that scrolls into view (the whole slide run) stalls a frame.
+    await this.scene.whenReadyAsync();
     const cp = checkpoint > 0 && level.checkpoints[checkpoint] ? checkpoint : 0;
     level.startCheckpoint = cp;
     level.checkpoint = cp;

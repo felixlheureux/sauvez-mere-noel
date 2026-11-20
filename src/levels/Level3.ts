@@ -510,7 +510,8 @@ export class Level3 extends Level {
     g.objective(OBJ.slide);
     p.body.position.set(centerX(tz), terrain(centerX(tz), tz), tz);
     if (first) {
-      for (const [z, side] of [
+      // Throwers along the run, one every few frames: building eight at once is a hitch.
+      const throwers = [
         [84, 1],
         [66, -1],
         [44, 1],
@@ -519,14 +520,17 @@ export class Level3 extends Level {
         [-14, -1],
         [-36, 1],
         [-50, -1],
-      ] as const) {
-        const x = centerX(z) + side * 11.5;
-        g.enemies.spawn(new Vector3(x, terrain(x, z), z), {
-          tuning: ELF_THROWER,
-          perched: true,
-          yaw: side > 0 ? -Math.PI / 2 : Math.PI / 2,
+      ] as const;
+      throwers.forEach(([z, side], i) => {
+        g.after(i * 0.05, () => {
+          const x = centerX(z) + side * 11.5;
+          g.enemies.spawn(new Vector3(x, terrain(x, z), z), {
+            tuning: ELF_THROWER,
+            perched: true,
+            yaw: side > 0 ? -Math.PI / 2 : Math.PI / 2,
+          });
         });
-      }
+      });
       g.after(2.5, () => g.tip(LINES.level3CoalTip));
     }
     await new Promise<void>((resolve) => {
