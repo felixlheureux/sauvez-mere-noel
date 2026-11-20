@@ -19,6 +19,11 @@ const ARENA = new Vector3(0, 0, 0);
 /** The shack: centre, width (x) and depth (z). Its door faces the yard (-z). */
 const SHACK = { x: 0, z: 32, w: 20, d: 12, h: 4 };
 const FRONT = SHACK.z - SHACK.d / 2;
+/** The roof: 4 m high, overhanging the walls by 0.5 m; the ridge runs along z. */
+const ROOF = { h: 4, half: (SHACK.w + 1) / 2, d: SHACK.d + 1.4 };
+/** Height of the snow on the roof at `x`. */
+const roofY = (x: number) =>
+  SHACK.h + ROOF.h * (1 - Math.min(1, Math.abs(x - SHACK.x) / ROOF.half)) + 0.18;
 const BACK = SHACK.z + SHACK.d / 2;
 /** The trail through the maple grove winds gently. */
 const trailX = (z: number) => 5 * Math.sin(z * 0.06);
@@ -232,8 +237,17 @@ export class Level4 extends Level {
     this.solid(sx + 2, FRONT + 2, t, h, 4);
     this.solid(sx + 2, BACK - 2.5, t, h, 5);
     this.solid(sx + 2, FRONT + 5.5, t, h - 2.8, 3, 2.8);
-    // The roof volume (keeps everyone inside under it, and off it).
-    this.solid(sx, sz, w + 1, 4, SHACK.d + 1.4, h);
+    // The roof: small steps following both slopes, so you can walk up it. Santa is wider
+    // than a step, so his front edge meets the next few: 12 cm each keeps that within the
+    // step-up height. They fill it down to the walls, so nothing gets in under it.
+    const steps = Math.ceil(ROOF.h / 0.12);
+    const run = ROOF.half / steps;
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < steps; i++) {
+        const x = sx + side * (ROOF.half - (i + 0.5) * run);
+        this.solid(x, sz, run, roofY(x) - h, ROOF.d, h);
+      }
+    }
     // Porch roof, reached by a woodpile; a bell up there.
     this.solid(sx - 6.5, FRONT - 1.5, 7, 0.4, 3, 2.9);
     this.solid(sx - 9.6, FRONT - 2.8, 0.4, 2.9, 0.4);
@@ -262,7 +276,11 @@ export class Level4 extends Level {
     this.food("ragout", sx - 2.5, 34.5, 25);
     this.food("buche", sx - 6.5, 34.5, 100);
     this.health(sx - 2, 29.5, true, 1.15);
-    this.candyLine(sx - 8, 32, sx - 1, 32, 4);
+    // The steam vent and chimney on the roof are solid too.
+    this.solid(sx + 6, sz, 3, 2.4, 1.6, h + 1);
+    this.solid(sx + 7, sz + 3.5, 0.8, 3.9, 0.8, h + 1.1);
+    // Up on the roof, along the slope.
+    for (const x of [sx - 8, sx - 5.7, sx - 3.3, sx - 1]) this.candy(x, roofY(x) + 0.7, 32);
     this.pointLight(new Vector3(sx - 4, 3.2, sz), "#ffc27a", 1.4, 12);
 
     // Evaporator room.
@@ -275,7 +293,7 @@ export class Level4 extends Level {
       36.8,
     );
     this.solid(sx + 3.8, 36.8, 2.4, 0.8, 1.3);
-    this.health(sx + 9, 37);
+    this.health(sx + 9, 37, false, roofY(sx + 9));
     this.pointLight(new Vector3(sx + 6.5, 3, 33), "#ff9a4a", 1.5, 11);
 
     // The way out: a chimney in the yard, beside the door.
@@ -571,9 +589,9 @@ export class Level4 extends Level {
     if (this.steamTime <= 0) {
       this.steamTime = 0.25;
       const g = this.game;
-      g.fx.puff(new Vector3(SHACK.x + 6 + Math.random(), SHACK.h + 5.2, SHACK.z), "white", 2, 1.6);
+      g.fx.puff(new Vector3(SHACK.x + 6 + Math.random(), SHACK.h + 3.9, SHACK.z), "white", 2, 1.6);
       g.fx.puff(new Vector3(SHACK.x + 7, 1.6, 31 + Math.random() * 4), "white", 1, 1);
-      g.fx.puff(new Vector3(SHACK.x + 7, SHACK.h + 6.2, SHACK.z + 3.5), "coal", 1, 1.4);
+      g.fx.puff(new Vector3(SHACK.x + 7, SHACK.h + 5.3, SHACK.z + 3.5), "coal", 1, 1.4);
     }
   }
 

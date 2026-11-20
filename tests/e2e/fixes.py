@@ -77,6 +77,19 @@ async def main():
         cur = await page.evaluate("() => store.getState().objective")
         check("Rooftops: skipping a roof still counts it (no walking back)", cur == obj["crossPlank"], cur)
 
+        # Level 4: the cabane roof can be climbed, and its candies sit on the slope.
+        await load(page, 4); await skip_cutscene(page, 30)
+        r = await page.evaluate("""() => game.level.pickups.filter(p => /^candy/.test(p.mesh.name) && Math.abs(p.pos.z - 32) < 0.5 && Math.abs(p.pos.x) < 10)
+          .map(p => ({x: p.pos.x, gap: +(p.pos.y - game.physics.groundHeightAt(p.pos.x, p.pos.z, p.pos.y)).toFixed(2)}))""")
+        check("Cabane: the roof candies sit just above the roof slope", len(r) == 4 and all(0.5 <= c["gap"] <= 0.95 for c in r), str(r))
+        await page.evaluate("() => { const P = game.player, b = P.body; P.invuln = 1e6; P.hp = 1e6; for (const e of game.enemies.elves) e.dormant = true; b.position.set(-10.3, 4.6, 32); b.velocity.setAll(0); game.camRig.yaw = Math.PI / 2; store.setState({dialogue: null}); }")
+        await gwait(page, 0.4)
+        await page.keyboard.down("KeyW"); await gwait(page, 2.5); await page.keyboard.up("KeyW")
+        r = await page.evaluate("""() => ({x: +game.player.body.position.x.toFixed(1), y: +game.player.body.position.y.toFixed(2),
+          got: game.level.pickups.filter(p => /^candy/.test(p.mesh.name) && Math.abs(p.pos.z - 32) < 0.5 && Math.abs(p.pos.x) < 10 && p.collected).length})""")
+        check("Cabane: you can walk up the roof from the eave to the ridge, picking up its candies", r["y"] > 7.6 and r["got"] == 4, str(r))
+        await page.screenshot(path="out/fixes_roof.png")
+
         # Blood on the screen when an enemy bursts close by; never over the middle of the screen.
         await load(page, 1); await skip_cutscene(page, 30)
         SPLATS = "() => [...document.querySelectorAll('svg[viewBox=\"0 0 100 130\"]')].map(e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })"

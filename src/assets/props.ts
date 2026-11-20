@@ -1425,10 +1425,11 @@ export class PropFactory {
       // Sign.
       .part("m", box(4.2, 1, 0.15), "white", { pos: [0, h - 0.4, -d / 2 - 0.25] })
       .part("m", box(4, 0.8, 0.16), "red", { pos: [0, h - 0.4, -d / 2 - 0.26] })
-      // Steam vent + chimney over the evaporator.
-      .part("m", box(3, 1.4, 1.6), "wood", { pos: [6, h + 4, 0] })
-      .part("m", prism(3.6, 0.8, 2), "deepRed", { pos: [6, h + 4.7, 0] })
-      .part("m", cyl(0.8, 0.8, 3, 8), "darkGrey", { pos: [7, h + 4.5, 3.5] });
+      // Steam vent + chimney over the evaporator, rising out of the roof's slope (their
+      // feet go down past the lowest point of the roof under them: no gap).
+      .part("m", box(3, 2, 1.6), "wood", { pos: [6, h + 2, 0] })
+      .part("m", prism(3.6, 0.8, 2), "deepRed", { pos: [6, h + 3, 0] })
+      .part("m", cyl(0.8, 0.8, 3.9, 8), "darkGrey", { pos: [7, h + 3.05, 3.5] });
     for (const x of [-7, -3, 6]) {
       b.part("m", box(1.4, 1.2, 0.1), "warmLight", {
         pos: [x, 2.2, -d / 2 - 0.22],
@@ -2125,16 +2126,24 @@ export class PropFactory {
 
 /** Gable roof sitting on the walls, with a small overhang. */
 /**
- * Snow on a pitched roof (a prism of `w` × `h` × `d` with its base at `pos`): the same
- * triangle, smaller, lifted so its slopes lie parallel just above the roof's (no gap, no
- * flicker), covering the top `cover` of the roof.
+ * Snow on a pitched roof (a prism of `w` × `h` × `d` with its base at `pos`, ridge along
+ * z): a thin slab on each slope, lying just above it, eave to ridge. Slabs, not a bigger
+ * prism, so no white triangle shows on the gable ends.
  */
-function roofSnow(b: ModelBuilder, w: number, h: number, d: number, pos: V3, cover = 0.55) {
+function roofSnow(b: ModelBuilder, w: number, h: number, d: number, pos: V3) {
+  const t = 0.16;
   const slope = Math.atan2(h, w / 2);
-  const lift = 0.14 / Math.cos(slope);
-  b.part("m", prism(w * cover, h * cover, d + 0.12), "snow", {
-    pos: [pos[0], pos[1] + h + lift - h * cover, pos[2]],
-  });
+  const len = Math.hypot(w / 2, h) + 0.1;
+  for (const side of [-1, 1]) {
+    b.part("m", box(len, t, d + 0.1), "snow", {
+      pos: [
+        pos[0] + side * (w / 4 + Math.sin(slope) * (t / 2 + 0.02)),
+        pos[1] + h / 2 + Math.cos(slope) * (t / 2 + 0.02),
+        pos[2],
+      ],
+      rot: [0, 0, (-side * slope * 180) / Math.PI],
+    });
+  }
 }
 
 function gable(b: ModelBuilder, w: number, d: number, wallTop: number, c: ColorName, over = 1.12) {

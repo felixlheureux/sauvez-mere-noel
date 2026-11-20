@@ -118,7 +118,10 @@ export class PhysicsWorld {
           c.max.y - feet <= STEP_HEIGHT &&
           this.headroomAt(p.x, p.z, r, c.max.y, body.height)
         ) {
-          p.y = c.max.y;
+          // Stand on it only once the inner circle is over it, as the ground check below
+          // does: stepped up on a mere graze, you'd find no ground under you, drop, and
+          // the step would then stop you like a wall.
+          if (this.overlapsXZ(c, p.x, p.z, r * 0.9)) p.y = c.max.y;
           continue;
         }
         const left = p.x + r - c.min.x;
@@ -201,7 +204,9 @@ export class PhysicsWorld {
   private headroomAt(x: number, z: number, r: number, y: number, height: number) {
     for (const c of this.colliders) {
       if (!c.enabled || !this.overlapsXZ(c, x, z, r)) continue;
-      if (c.min.y < y + height && c.max.y > y + SKIN) return false;
+      // Something no higher than a step up from there is the next step (a staircase,
+      // a stepped roof), not a ceiling: it gets climbed in turn.
+      if (c.min.y < y + height && c.max.y > y + STEP_HEIGHT) return false;
     }
     return true;
   }
