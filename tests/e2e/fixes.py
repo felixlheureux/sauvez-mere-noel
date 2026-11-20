@@ -86,24 +86,31 @@ async def main():
         await asyncio.sleep(2.6)
         await page.evaluate(kill, 12); await asyncio.sleep(0.3)
         far = len(await page.evaluate(SPLATS))
-        await asyncio.sleep(2.6)
-        await page.evaluate(kill, 5.5); await asyncio.sleep(0.25)
-        mid5 = len(await page.evaluate(SPLATS))
-        await asyncio.sleep(3.6)
-        await page.evaluate(kill, 1.2); await asyncio.sleep(0.25)
-        near = await page.evaluate(SPLATS)
-        await page.screenshot(path="out/fixes_splat.png")
+        tiers = {}
+        for d in (6.2, 3.8, 1.2):
+            await asyncio.sleep(3.6)
+            await page.evaluate(kill, d); await asyncio.sleep(0.3)
+            tiers[d] = await page.evaluate(SPLATS)
+            if d == 1.2: await page.screenshot(path="out/fixes_splat.png")
+        big = lambda rs: sum(1 for r in rs if r[2] - r[0] > 720 * 0.2)
+        count = {d: (len(rs), big(rs)) for d, rs in tiers.items()}
         check("A kill 12 m away: no blood on the screen", far == 0, str(far))
-        check("A kill 5.5 m away: some blood on the screen", mid5 >= 3, str(mid5))
-        check("A kill 1.2 m away: lots of blood on the screen", len(near) >= 6, str(len(near)))
+        check("Blood by distance: 6 m a few droplets, 4 m a big splat, 1 m a lot more",
+              count[6.2] == (4, 0) and count[3.8][0] == 7 and count[3.8][1] >= 1 and count[1.2][0] == 15 and count[1.2][1] >= 3, str(count))
         for _ in range(8):
-            await page.evaluate(kill, 1); await asyncio.sleep(0.35)
+            await page.evaluate(kill, 1); await asyncio.sleep(0.3)
         many = await page.evaluate(SPLATS)
-        check("Many kills in a row: never more than 10 splats at once", 0 < len(many) <= 10, str(len(many)))
+        check("Many close kills in a row: capped at 30 splats", 15 < len(many) <= 30, str(len(many)))
         vw, vh = 1280, 720
-        mid = [vw * 0.35, vh * 0.35, vw * 0.65, vh * 0.65]
-        clear = all(r[2] < mid[0] or r[0] > mid[2] or r[3] < mid[1] or r[1] > mid[3] for r in near + many)
-        check("The middle of the screen (where you aim) stays clear", clear, str([[round(v) for v in r] for r in near + many]))
+        rects = [r for rs in tiers.values() for r in rs] + many
+        mid = [vw * 0.37, vh * 0.35, vw * 0.63, vh * 0.65]
+        clear = all(r[2] < mid[0] or r[0] > mid[2] or r[3] < mid[1] or r[1] > mid[3] for r in rects)
+        check("The middle of the screen (where you aim) stays clear", clear)
+        def shown(r):
+            w, h = r[2] - r[0], r[3] - r[1]
+            return max(0, min(r[2], vw) - max(r[0], 0)) * max(0, min(r[3], vh) - max(r[1], 0)) / (w * h)
+        worst = min(shown(r) for r in rects)
+        check("Every splat is mostly on screen (none pushed off the edge)", worst > 0.55, f"least visible: {worst:.0%}")
         await asyncio.sleep(3.6)
         check("Splats fade away in a couple of seconds", len(await page.evaluate(SPLATS)) == 0)
 

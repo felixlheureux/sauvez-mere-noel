@@ -623,40 +623,72 @@ const SPLAT_SHAPES = [
   "M46 18 C58 8 80 14 78 32 C92 40 88 60 74 62 C78 78 60 86 50 76 C38 88 18 80 24 64 C10 58 12 38 28 36 C26 24 36 16 46 18Z",
 ];
 
+/** Splat sizes (fractions of the screen height) for a big splat and a droplet. */
+const BIG = [0.22, 0.34];
+const DROP = [0.05, 0.11];
+
 /**
- * A spot on the screen's outer band: blood never covers the middle, where you aim. Big
- * splats sit right on the edge (partly off screen); small droplets can come a bit closer.
+ * Where a splat of `size` px goes: anywhere on screen (at most a sliver past the edge),
+ * except over the middle, where you aim. Tried at random until one fits.
  */
-function edgeSpot(id: number, size: number, big: boolean): Splat {
-  const a = Math.random() * Math.PI * 2;
-  const r = big ? 1 + Math.random() * 0.12 : 0.85 + Math.random() * 0.2;
+function placeSplat(id: number, size: number): Splat {
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  // Rotated by at most 25°, the splat fits in a box about 1.6 × its width.
+  const half = size * 0.8;
+  const clear = { x0: W * 0.36, x1: W * 0.64, y0: H * 0.34, y1: H * 0.66 };
+  let x = 0;
+  let y = 0;
+  for (let k = 0; k < 30; k++) {
+    x = half * 0.7 + Math.random() * (W - half * 1.4);
+    y = half * 0.7 + Math.random() * (H - half * 1.4);
+    const overlaps =
+      x + half > clear.x0 && x - half < clear.x1 && y + half > clear.y0 && y - half < clear.y1;
+    if (!overlaps) break;
+    // Nothing fit: tuck it into a corner.
+    if (k === 29) {
+      x = Math.random() < 0.5 ? half * 0.7 : W - half * 0.7;
+      y = Math.random() < 0.5 ? half * 0.7 : H - half * 0.7;
+    }
+  }
   return {
     id,
-    x: 50 + Math.cos(a) * 48 * r,
-    y: 50 + Math.sin(a) * 48 * r,
-    size: big ? 18 + size * 18 + Math.random() * 4 : 6 + Math.random() * 8,
-    rot: Math.random() * 360,
+    x,
+    y,
+    size,
+    rot: (Math.random() - 0.5) * 50,
     shape: Math.floor(Math.random() * SPLAT_SHAPES.length),
   };
 }
 
-/** Blood on the "lens" when an enemy bursts nearby: edges only, at most 10, gone in ~3 s. */
+/** How much blood a kill throws, by closeness (0 = 7 m away, 1 = in Santa's face). */
+function splatsFor(closeness: number) {
+  if (closeness > 0.64) return { big: 3, drops: 12 }; // under 2.5 m
+  if (closeness > 0.3) return { big: 1, drops: 6 }; // 2.5–5 m
+  return { big: 0, drops: 4 }; // 5–7 m
+}
+
+/** Blood on the "lens" when an enemy bursts nearby: more the closer, never over the middle. */
 function BloodSplatter() {
   const at = useStore((s) => s.bloodSplat);
-  const size = useStore((s) => s.splatSize);
+  const closeness = useStore((s) => s.splatSize);
   const [splats, setSplats] = useState<Splat[]>([]);
   const last = useRef(0);
   useEffect(() => {
-    if (!at || at - last.current < 300) return;
+    if (!at || at - last.current < 250) return;
     last.current = at;
-    // One big splat (two up close) and a spray of droplets.
-    const fresh = Array.from({ length: 3 + Math.round(size * 4) }, (_, i) =>
-      edgeSpot(at + i, size, i === 0 || (i === 1 && size > 0.6)),
-    );
-    setSplats((s) => [...s, ...fresh].slice(-10));
+    const H = window.innerHeight;
+    const n = splatsFor(closeness);
+    const rand = ([a, b]: number[]) =>
+      (a as number) + Math.random() * ((b as number) - (a as number));
+    const fresh = [
+      ...Array.from({ length: n.big }, (_, i) => placeSplat(at + i, rand(BIG) * H)),
+      ...Array.from({ length: n.drops }, (_, i) => placeSplat(at + 100 + i, rand(DROP) * H)),
+    ];
+    setSplats((s) => [...s, ...fresh].slice(-30));
     // Not cleared on the next splat: each one goes on its own schedule.
     setTimeout(() => setSplats((s) => s.filter((x) => !fresh.includes(x))), 3300);
-  }, [at, size]);
+  }, [at, closeness]);
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {splats.map((p) => (
@@ -669,11 +701,11 @@ function BloodSplatter() {
           transition={{ duration: 3.2, times: [0, 0.06, 0.5, 1] }}
           className="absolute"
           style={{
-            left: `${p.x}%`,
-            top: `${p.y}%`,
-            width: `${p.size}vh`,
-            height: `${p.size * 1.3}vh`,
-            translate: "-50% -40%",
+            left: p.x,
+            top: p.y,
+            width: p.size,
+            height: p.size * 1.3,
+            translate: "-50% -50%",
             rotate: `${p.rot}deg`,
           }}
         >
