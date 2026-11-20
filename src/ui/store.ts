@@ -41,7 +41,9 @@ export interface LevelStats {
 interface Settings {
   confetti: boolean;
   sensitivity: number;
+  /** Master volume, 0–1. */
   volume: number;
+  musicVolume: number;
   invertY: boolean;
   music: boolean;
   /** Test mode: jump to any level / checkpoint from Options. */
@@ -98,6 +100,8 @@ interface HudState {
   crosshair: boolean;
   pointerLocked: boolean;
   bloodSplat: number;
+  /** How big the last splat is, 0–1 (1 = a kill right in Santa's face). */
+  splatSize: number;
   stats: LevelStats | null;
   letterbox: boolean;
   /** On the snow tube: the HUD draws speed lines. */
@@ -159,6 +163,7 @@ export const useStore = create<Store>()(
       crosshair: false,
       pointerLocked: false,
       bloodSplat: 0,
+      splatSize: 0,
       stats: null,
       letterbox: false,
       riding: false,
@@ -168,7 +173,8 @@ export const useStore = create<Store>()(
       settings: {
         confetti: false,
         sensitivity: 1,
-        volume: 0.8,
+        volume: 0.75,
+        musicVolume: 0.75,
         invertY: false,
         music: true,
         debug: false,
@@ -207,11 +213,12 @@ export const useStore = create<Store>()(
     }),
     {
       name: "sauvez-mere-noel",
-      version: 2,
-      // Saves from version 1 had no `resume` field.
+      version: 3,
+      // Saves from version 1 had no `resume` field, and before 3 no music volume.
       migrate: (state) => {
         const s = state as { progress?: Progress; settings?: Settings };
         if (s.progress) s.progress = { ...s.progress, resume: s.progress.resume ?? null };
+        if (s.settings) s.settings = { ...s.settings, musicVolume: s.settings.musicVolume ?? 0.75 };
         return s as never;
       },
       partialize: (s) => ({ settings: s.settings, progress: s.progress }),

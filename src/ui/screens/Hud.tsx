@@ -607,10 +607,89 @@ function TitleCard() {
   );
 }
 
+interface Splat {
+  id: number;
+  x: number;
+  y: number;
+  size: number;
+  rot: number;
+  shape: number;
+}
+
+/** Blob outlines (100×100 viewBox); drips and droplets are added around them. */
+const SPLAT_SHAPES = [
+  "M60 10 C80 5 95 25 88 45 C100 55 90 75 72 70 C70 90 45 95 40 78 C20 85 5 65 20 52 C5 40 20 20 38 28 C40 12 52 5 60 10Z",
+  "M50 14 C62 4 74 18 70 30 C86 26 96 42 82 52 C94 64 80 80 66 72 C62 90 40 92 38 76 C22 84 8 70 18 58 C4 48 14 30 30 34 C28 22 40 10 50 14Z",
+  "M46 18 C58 8 80 14 78 32 C92 40 88 60 74 62 C78 78 60 86 50 76 C38 88 18 80 24 64 C10 58 12 38 28 36 C26 24 36 16 46 18Z",
+];
+
+/** A spot on the screen's outer band: blood never covers the middle, where you aim. */
+function edgeSpot(id: number, size: number): Splat {
+  const a = Math.random() * Math.PI * 2;
+  const r = 0.9 + Math.random() * 0.12;
+  return {
+    id,
+    x: 50 + Math.cos(a) * 46 * r,
+    y: 50 + Math.sin(a) * 46 * r,
+    size: 12 + size * 14 + Math.random() * 4,
+    rot: Math.random() * 360,
+    shape: Math.floor(Math.random() * SPLAT_SHAPES.length),
+  };
+}
+
+/** Blood on the "lens" when an enemy bursts nearby: edges only, at most 4, gone in ~2 s. */
+function BloodSplatter() {
+  const at = useStore((s) => s.bloodSplat);
+  const size = useStore((s) => s.splatSize);
+  const [splats, setSplats] = useState<Splat[]>([]);
+  const last = useRef(0);
+  useEffect(() => {
+    if (!at || at - last.current < 300) return;
+    last.current = at;
+    const fresh = Array.from({ length: 1 + Math.round(size * 2) }, (_, i) =>
+      edgeSpot(at + i, size),
+    );
+    setSplats((s) => [...s, ...fresh].slice(-4));
+    // Not cleared on the next splat: each one goes on its own schedule.
+    setTimeout(() => setSplats((s) => s.filter((x) => !fresh.includes(x))), 2300);
+  }, [at, size]);
+  return (
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      {splats.map((p) => (
+        <motion.svg
+          key={p.id}
+          viewBox="0 0 100 130"
+          aria-hidden="true"
+          initial={{ opacity: 0.9, scale: 0.5 }}
+          animate={{ opacity: [0.9, 0.85, 0], scale: [0.5, 1, 1.02] }}
+          transition={{ duration: 2.2, times: [0, 0.08, 1], ease: "easeIn" }}
+          className="absolute"
+          style={{
+            left: `${p.x}%`,
+            top: `${p.y}%`,
+            width: `${p.size}vh`,
+            height: `${p.size * 1.3}vh`,
+            translate: "-50% -40%",
+            rotate: `${p.rot}deg`,
+          }}
+        >
+          <path d={SPLAT_SHAPES[p.shape]} fill="#7a0014" />
+          <path d={SPLAT_SHAPES[p.shape]} fill="#a3001c" transform="translate(12 12) scale(0.76)" />
+          <rect x="34" y="70" width="5" height="40" rx="2.5" fill="#7a0014" />
+          <rect x="58" y="72" width="4" height="28" rx="2" fill="#7a0014" />
+          <circle cx="36.5" cy="111" r="4" fill="#7a0014" />
+          <circle cx="12" cy="20" r="4" fill="#7a0014" />
+          <circle cx="92" cy="18" r="3" fill="#7a0014" />
+          <circle cx="94" cy="96" r="2.5" fill="#7a0014" />
+        </motion.svg>
+      ))}
+    </div>
+  );
+}
+
 function HurtOverlay() {
   const hurtAt = useStore((s) => s.hurtAt);
   const dir = useStore((s) => s.hurtDir);
-  const splat = useStore((s) => s.bloodSplat);
   const hp = useStore((s) => s.hp);
   return (
     <>
@@ -638,31 +717,6 @@ function HurtOverlay() {
           <div className="absolute -top-[22vh] -left-6 h-0 w-0 border-x-[24px] border-b-[36px] border-x-transparent border-b-red-600/80" />
         </motion.div>
       )}
-      <AnimatePresence>
-        {splat > 0 && (
-          <motion.div
-            key={`s${splat}`}
-            initial={{ opacity: 0.85, scale: 1.1 }}
-            animate={{ opacity: 0, scale: 1 }}
-            transition={{ duration: 2.2, ease: "easeIn" }}
-            className="pointer-events-none absolute inset-0"
-          >
-            <svg
-              className="absolute -top-10 -right-10 h-[45vh] w-[45vh]"
-              viewBox="0 0 100 100"
-              aria-hidden="true"
-            >
-              <path
-                d="M60 10 C80 5 95 25 88 45 C100 55 90 75 72 70 C70 90 45 95 40 78 C20 85 5 65 20 52 C5 40 20 20 38 28 C40 12 52 5 60 10Z"
-                fill="#8a0018"
-                opacity="0.85"
-              />
-              <circle cx="20" cy="85" r="5" fill="#8a0018" />
-              <circle cx="90" cy="88" r="3" fill="#8a0018" />
-            </svg>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   );
 }
@@ -716,6 +770,7 @@ export function Hud() {
   return (
     <div className="pointer-events-none fixed inset-0">
       <HurtOverlay />
+      <BloodSplatter />
       <AnimatePresence>
         {letterbox && (
           <>

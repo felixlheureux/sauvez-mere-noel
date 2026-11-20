@@ -14,6 +14,7 @@ import { Materials } from "../assets/Materials";
 import { type ColorName, color } from "../assets/Palette";
 import { PropFactory } from "../assets/props";
 import { sound } from "../audio/Sound";
+import type { Elf } from "../enemies/Elf";
 import { EnemyManager } from "../enemies/EnemyManager";
 import { Projectiles } from "../enemies/Projectiles";
 import { Effects } from "../fx/Effects";
@@ -95,6 +96,8 @@ export class Game {
   private barkCooldown = 0;
   private wasLocked = false;
   private lockLostAt = 0;
+  /** Menu closed but the game stays frozen until the mouse is grabbed again. */
+  private waitingLock = false;
   private lockGainedAt = 0;
   private ending = false;
 
@@ -132,7 +135,7 @@ export class Game {
     this.projectiles = new Projectiles(this);
     this.levelRoot = new TransformNode("level", this.scene);
     this.player = new Player(this);
-    this.enemies.onKill = (_e, kind) => this.onKill(kind);
+    this.enemies.onKill = (e) => this.onKill(e);
     window.addEventListener("resize", () => this.engine.resize());
     document.addEventListener("pointerlockchange", () => this.onPointerLockChange());
   }
@@ -165,7 +168,13 @@ export class Game {
     this.input.sensitivity = s.sensitivity;
     this.input.invertY = s.invertY;
     sound.setVolume(s.volume);
-    sound.musicOn = s.music;
+    sound.setMusicVolume(s.musicVolume);
+    // Turned back on: straight in, not after the rest between carols.
+    if (s.music !== sound.musicOn) {
+      sound.musicOn = s.music;
+      if (s.music) sound.startMusic();
+      else sound.stopMusic();
+    }
     // GPU timer queries only while the debug overlay is up.
     this.gpuTimer.captureGPUFrameTime = s.debug;
   }
@@ -231,6 +240,7 @@ export class Game {
     this.disposeLevel();
     this.inTitle = true;
     this.paused = false;
+    this.waitingLock = false;
     // Menus need a free mouse cursor.
     this.input.exitPointerLock();
     this.level = createLevel(0, this);
@@ -284,6 +294,7 @@ export class Game {
     this.disposeLevel();
     this.inTitle = false;
     this.paused = false;
+    this.waitingLock = false;
     this.ending = false;
     const level = createLevel(id, this);
     this.level = level;
@@ -373,15 +384,20 @@ export class Game {
   }
 
   /**
-   * `grabMouse`: re-lock the cursor (from a click — the Resume button). Esc can't: it
-   * isn't a user gesture, so the next key the player presses (or a click) grabs it.
+   * Close the menu. The game stays frozen until the mouse is locked again: `grabMouse`
+   * locks it now (a click: the Resume button). Esc can't, as it isn't a user gesture,
+   * so the next key the player presses (or a click) does.
    */
   resume(grabMouse = true) {
-    if (!this.paused) return;
-    this.paused = false;
+    if (!this.paused || this.waitingLock) return;
     hud.set({ screen: "playing" });
+    if (this.input.pointerLocked) {
+      this.paused = false;
+      return;
+    }
+    this.waitingLock = true;
+    this.input.lockOnKey = true;
     if (grabMouse) this.input.requestPointerLock();
-    else this.input.lockOnKey = true;
   }
 
   /** Level finished: freeze, show the score card, save progress. */
@@ -625,14 +641,19 @@ export class Game {
     else if (r < 0.18) this.level.buff(Math.random() < 0.5 ? "speed" : "rage", pos.x, pos.z);
   }
 
-  private onKill(kind: string) {
+  /** Enemies dying this close spray blood on the screen (bigger the closer). */
+  static readonly SPLAT_RANGE = 4.5;
+
+  private onKill(e: Elf) {
     this.quietTime = 0;
     this.comboCount = this.comboTimer > 0 ? this.comboCount + 1 : 1;
     this.comboTimer = 1.6;
     const now = performance.now();
     hud.set({ combo: this.comboCount, comboAt: now, killAt: now });
-    const near = this.enemies.elves.length > 0;
-    if (near && !this.gore.confetti && kind !== "bullet") hud.set({ bloodSplat: now });
+    const d = Vector3.Distance(e.center, this.player.body.position);
+    if (d < Game.SPLAT_RANGE && !this.gore.confetti) {
+      hud.set({ bloodSplat: now, splatSize: 1 - d / Game.SPLAT_RANGE });
+    }
     this.barkCooldown -= 1;
     if (this.comboCount >= 3 && this.comboCount % 3 === 0) {
       this.bark(pick(Math.random, LINES.barksCombo));
@@ -647,6 +668,10 @@ export class Game {
     hud.set({ pointerLocked: locked });
     const now = performance.now();
     if (locked && !this.wasLocked) this.lockGainedAt = now;
+    if (locked && this.waitingLock) {
+      this.waitingLock = false;
+      this.paused = false;
+    }
     if (this.wasLocked && !locked) {
       this.lockLostAt = now;
       // A lock lost right after it was taken is Chrome bouncing it (the same Esc), not
@@ -669,7 +694,12 @@ export class Game {
 
     // The Esc that unlocked the mouse already paused: don't let it also un-pause.
     if (this.input.consume("pause", 0.2) && performance.now() - this.lockLostAt > 300) {
-      if (this.paused) this.resume(false);
+      if (this.waitingLock) {
+        // Esc again before grabbing the mouse: back to the menu.
+        this.waitingLock = false;
+        this.input.lockOnKey = false;
+        hud.set({ screen: "paused" });
+      } else if (this.paused) this.resume(false);
       else this.pause();
     }
 

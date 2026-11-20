@@ -20,6 +20,21 @@ async def main():
         after = await page.evaluate("() => sound.musicTimer !== null")
         check("Title screen: the carol starts on the first click", not before and after, f"before {before}, after {after}")
 
+        # Volumes: master and music, both 75% by default (fresh browser profile).
+        vols = await page.evaluate("() => [store.getState().settings.volume, store.getState().settings.musicVolume]")
+        check("Defaults: master volume 75%, music volume 75%", vols == [0.75, 0.75], str(vols))
+        # Turning music off and on again: it starts straight away (not after the rest).
+        r = await page.evaluate("""async () => { const g = game; const set = store.getState().setSettings;
+          sound.restUntil = sound.ctx.currentTime + 30;
+          set({ music: false }); g.applySettings(); const off = sound.musicTimer === null;
+          set({ music: true }); g.applySettings();
+          return {off, on: sound.musicTimer !== null, wait: +(Math.max(sound.restUntil, sound.nextNoteTime) - sound.ctx.currentTime).toFixed(2)}; }""")
+        check("Music off stops it; back on, it plays within half a second", r["off"] and r["on"] and r["wait"] < 0.5, str(r))
+        # The rest between two carols is a few seconds, not half a minute.
+        gaps = await page.evaluate("""() => { const out = []; for (let i = 0; i < 20; i++) { sound.pass = 1; const t = sound.ctx.currentTime; sound.endPass(t); out.push(sound.restUntil - t); } return out; }""")
+        check("The silence between carols is 4–8 s", all(4 <= g <= 8 for g in gaps), f"{min(gaps):.1f}–{max(gaps):.1f} s")
+        await page.evaluate("() => { store.getState().setSettings({ music: true }); game.applySettings(); }")
+
         # Every reworked sound plays without errors.
         await page.evaluate("""() => {
           for (const f of ['capGun', 'shotgun', 'smg', 'launcher', 'icicle', 'twang', 'zap', 'flame', 'explosion', 'hurt', 'hit', 'splat']) sound[f](); }""")
@@ -61,6 +76,32 @@ async def main():
         ok = await until(page, f"() => store.getState().objective === {obj['crossPlank']!r}", 5)
         cur = await page.evaluate("() => store.getState().objective")
         check("Rooftops: skipping a roof still counts it (no walking back)", cur == obj["crossPlank"], cur)
+
+        # Blood on the screen when an enemy bursts close by; never over the middle of the screen.
+        await load(page, 1); await skip_cutscene(page, 30)
+        SPLATS = "() => [...document.querySelectorAll('svg[viewBox=\"0 0 100 130\"]')].map(e => { const r = e.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; })"
+        kill = """(d) => { const g = game, P = g.player, V = P.body.position.constructor; P.invuln = 1e6;
+          for (const e of g.enemies.elves) if (e.alive) g.enemies.hit(e, 999, e.body.position, 'bullet', 0);
+          const p = P.body.position; const e = g.enemies.spawn(new V(p.x + d, p.y, p.z), {}); g.enemies.hit(e, 999, p, 'bullet', 2); }"""
+        await asyncio.sleep(2.6)
+        await page.evaluate(kill, 12); await asyncio.sleep(0.3)
+        far = len(await page.evaluate(SPLATS))
+        await asyncio.sleep(2.6)
+        await page.evaluate(kill, 1.2); await asyncio.sleep(0.25)
+        near = await page.evaluate(SPLATS)
+        await page.screenshot(path="out/fixes_splat.png")
+        check("A kill 12 m away: no blood on the screen", far == 0, str(far))
+        check("A kill 1.2 m away: blood on the screen", len(near) >= 2, str(len(near)))
+        for _ in range(8):
+            await page.evaluate(kill, 1); await asyncio.sleep(0.35)
+        many = await page.evaluate(SPLATS)
+        check("Many kills in a row: never more than 4 splats at once", 0 < len(many) <= 4, str(len(many)))
+        vw, vh = 1280, 720
+        mid = [vw * 0.35, vh * 0.35, vw * 0.65, vh * 0.65]
+        clear = all(r[2] < mid[0] or r[0] > mid[2] or r[3] < mid[1] or r[1] > mid[3] for r in near + many)
+        check("The middle of the screen (where you aim) stays clear", clear, str([[round(v) for v in r] for r in near + many]))
+        await asyncio.sleep(2.6)
+        check("Splats fade away in a couple of seconds", len(await page.evaluate(SPLATS)) == 0)
 
         check("No page errors", not errors, str(errors[:3]))
         await br.close()

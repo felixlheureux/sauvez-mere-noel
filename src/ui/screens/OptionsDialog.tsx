@@ -54,7 +54,17 @@ export function OptionsDialog({
               max={1}
               step={0.01}
               value={[settings.volume]}
-              onValueChange={([v]) => set({ volume: v ?? 0.8 })}
+              onValueChange={([v]) => set({ volume: v ?? 0.75 })}
+            />
+          </div>
+          <div className="flex flex-col gap-3">
+            <span className="font-semibold">{T.optMusicVolume}</span>
+            <Slider
+              min={0}
+              max={1}
+              step={0.01}
+              value={[settings.musicVolume]}
+              onValueChange={([v]) => set({ musicVolume: v ?? 0.75 })}
             />
           </div>
           <div className="flex items-center justify-between">

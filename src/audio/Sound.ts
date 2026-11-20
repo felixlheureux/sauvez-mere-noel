@@ -382,8 +382,8 @@ const freq = (semi: number, base = 523.25) => base * 2 ** (semi / 12);
 /** The volume slider's 100% maps to this gain (about -15 dB): a fight measured -11.5 dBFS RMS
  *  and clipped at full gain (tests/e2e/loudness.py). */
 const HEADROOM = 0.18;
-/** Music level, applied after the distortion (so the drive never makes it louder). */
-const MUSIC_GAIN = 0.07;
+/** Music at full music volume, applied after the distortion (so the drive never makes it louder). */
+const MUSIC_GAIN = 0.13;
 /** Carols in the order they rotate in after each rest. */
 const ROTATION: Theme[] = ["jingle", "wewish", "reel", "anges", "silent"];
 
@@ -408,7 +408,9 @@ export class Sound {
   /** Passes through the carol so far (see scheduleMusic). */
   private pass = 0;
   private restUntil = 0;
-  private volume = 0.8;
+  private volume = 0.75;
+  private musicVolume = 0.75;
+  private musicLevel!: GainNode;
   musicOn = true;
 
   /** Audio is running (unlock() was called from a user gesture). */
@@ -449,8 +451,8 @@ export class Sound {
     // musicBus (fades) -> distortion -> filter -> music level -> master.
     this.musicBus = ctx.createGain();
     this.musicBus.gain.value = 1;
-    const musicLevel = ctx.createGain();
-    musicLevel.gain.value = MUSIC_GAIN;
+    this.musicLevel = ctx.createGain();
+    this.musicLevel.gain.value = MUSIC_GAIN * this.musicVolume;
     this.musicFilter = ctx.createBiquadFilter();
     this.musicFilter.type = "lowpass";
     this.musicFilter.frequency.value = 9000;
@@ -458,15 +460,22 @@ export class Sound {
     this.setDistortion(0);
     this.musicBus.connect(this.shaper);
     this.shaper.connect(this.musicFilter);
-    this.musicFilter.connect(musicLevel).connect(this.master);
+    this.musicFilter.connect(this.musicLevel).connect(this.master);
     this.noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const d = this.noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   }
 
+  /** Master volume, 0–1. */
   setVolume(v: number) {
     this.volume = v;
     if (this.ctx) this.master.gain.setTargetAtTime(v * HEADROOM, this.ctx.currentTime, 0.05);
+  }
+
+  /** Music volume, 0–1 (on top of the master volume). */
+  setMusicVolume(v: number) {
+    this.musicVolume = v;
+    if (this.ctx) this.musicLevel.gain.setTargetAtTime(MUSIC_GAIN * v, this.ctx.currentTime, 0.05);
   }
 
   /** Which carol the music box plays (one per level). */
@@ -508,6 +517,7 @@ export class Sound {
     this.bassTime = this.nextNoteTime;
     this.melodyIndex = 0;
     this.bassIndex = 0;
+    this.restUntil = 0;
     this.musicTimer = window.setInterval(() => this.scheduleMusic(), 50);
   }
 
@@ -523,7 +533,7 @@ export class Sound {
 
   /**
    * The music comes in waves so it doesn't loop forever: the carol, then a softer
-   * variation an octave down (no drums), then 20–30 s of silence, then the next carol.
+   * variation an octave down (no drums), then a few seconds of silence, then the next carol.
    */
   private scheduleMusic() {
     const ctx = this.ctx;
@@ -564,7 +574,7 @@ export class Sound {
     this.pass++;
     let start = t;
     if (this.pass % 2 === 0) {
-      start = t + 20 + Math.random() * 10;
+      start = t + 4 + Math.random() * 4;
       this.restUntil = start;
       const i = ROTATION.indexOf(this.playing);
       this.playing = ROTATION[(i + 1) % ROTATION.length] as Theme;
