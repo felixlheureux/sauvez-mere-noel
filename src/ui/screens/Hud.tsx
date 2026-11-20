@@ -623,21 +623,24 @@ const SPLAT_SHAPES = [
   "M46 18 C58 8 80 14 78 32 C92 40 88 60 74 62 C78 78 60 86 50 76 C38 88 18 80 24 64 C10 58 12 38 28 36 C26 24 36 16 46 18Z",
 ];
 
-/** A spot on the screen's outer band: blood never covers the middle, where you aim. */
-function edgeSpot(id: number, size: number): Splat {
+/**
+ * A spot on the screen's outer band: blood never covers the middle, where you aim. Big
+ * splats sit right on the edge (partly off screen); small droplets can come a bit closer.
+ */
+function edgeSpot(id: number, size: number, big: boolean): Splat {
   const a = Math.random() * Math.PI * 2;
-  const r = 0.9 + Math.random() * 0.12;
+  const r = big ? 1 + Math.random() * 0.12 : 0.85 + Math.random() * 0.2;
   return {
     id,
-    x: 50 + Math.cos(a) * 46 * r,
-    y: 50 + Math.sin(a) * 46 * r,
-    size: 12 + size * 14 + Math.random() * 4,
+    x: 50 + Math.cos(a) * 48 * r,
+    y: 50 + Math.sin(a) * 48 * r,
+    size: big ? 18 + size * 18 + Math.random() * 4 : 6 + Math.random() * 8,
     rot: Math.random() * 360,
     shape: Math.floor(Math.random() * SPLAT_SHAPES.length),
   };
 }
 
-/** Blood on the "lens" when an enemy bursts nearby: edges only, at most 4, gone in ~2 s. */
+/** Blood on the "lens" when an enemy bursts nearby: edges only, at most 10, gone in ~3 s. */
 function BloodSplatter() {
   const at = useStore((s) => s.bloodSplat);
   const size = useStore((s) => s.splatSize);
@@ -646,12 +649,13 @@ function BloodSplatter() {
   useEffect(() => {
     if (!at || at - last.current < 300) return;
     last.current = at;
-    const fresh = Array.from({ length: 1 + Math.round(size * 2) }, (_, i) =>
-      edgeSpot(at + i, size),
+    // One big splat (two up close) and a spray of droplets.
+    const fresh = Array.from({ length: 3 + Math.round(size * 4) }, (_, i) =>
+      edgeSpot(at + i, size, i === 0 || (i === 1 && size > 0.6)),
     );
-    setSplats((s) => [...s, ...fresh].slice(-4));
+    setSplats((s) => [...s, ...fresh].slice(-10));
     // Not cleared on the next splat: each one goes on its own schedule.
-    setTimeout(() => setSplats((s) => s.filter((x) => !fresh.includes(x))), 2300);
+    setTimeout(() => setSplats((s) => s.filter((x) => !fresh.includes(x))), 3300);
   }, [at, size]);
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -660,9 +664,9 @@ function BloodSplatter() {
           key={p.id}
           viewBox="0 0 100 130"
           aria-hidden="true"
-          initial={{ opacity: 0.9, scale: 0.5 }}
-          animate={{ opacity: [0.9, 0.85, 0], scale: [0.5, 1, 1.02] }}
-          transition={{ duration: 2.2, times: [0, 0.08, 1], ease: "easeIn" }}
+          initial={{ opacity: 0.95, scale: 0.5 }}
+          animate={{ opacity: [0.95, 0.9, 0.85, 0], scale: [0.5, 1, 1.01, 1.02] }}
+          transition={{ duration: 3.2, times: [0, 0.06, 0.5, 1] }}
           className="absolute"
           style={{
             left: `${p.x}%`,

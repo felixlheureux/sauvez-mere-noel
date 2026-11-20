@@ -642,7 +642,7 @@ export class Game {
   }
 
   /** Enemies dying this close spray blood on the screen (bigger the closer). */
-  static readonly SPLAT_RANGE = 4.5;
+  static readonly SPLAT_RANGE = 7;
 
   private onKill(e: Elf) {
     this.quietTime = 0;

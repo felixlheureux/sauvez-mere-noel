@@ -87,20 +87,24 @@ async def main():
         await page.evaluate(kill, 12); await asyncio.sleep(0.3)
         far = len(await page.evaluate(SPLATS))
         await asyncio.sleep(2.6)
+        await page.evaluate(kill, 5.5); await asyncio.sleep(0.25)
+        mid5 = len(await page.evaluate(SPLATS))
+        await asyncio.sleep(3.6)
         await page.evaluate(kill, 1.2); await asyncio.sleep(0.25)
         near = await page.evaluate(SPLATS)
         await page.screenshot(path="out/fixes_splat.png")
         check("A kill 12 m away: no blood on the screen", far == 0, str(far))
-        check("A kill 1.2 m away: blood on the screen", len(near) >= 2, str(len(near)))
+        check("A kill 5.5 m away: some blood on the screen", mid5 >= 3, str(mid5))
+        check("A kill 1.2 m away: lots of blood on the screen", len(near) >= 6, str(len(near)))
         for _ in range(8):
             await page.evaluate(kill, 1); await asyncio.sleep(0.35)
         many = await page.evaluate(SPLATS)
-        check("Many kills in a row: never more than 4 splats at once", 0 < len(many) <= 4, str(len(many)))
+        check("Many kills in a row: never more than 10 splats at once", 0 < len(many) <= 10, str(len(many)))
         vw, vh = 1280, 720
         mid = [vw * 0.35, vh * 0.35, vw * 0.65, vh * 0.65]
         clear = all(r[2] < mid[0] or r[0] > mid[2] or r[3] < mid[1] or r[1] > mid[3] for r in near + many)
         check("The middle of the screen (where you aim) stays clear", clear, str([[round(v) for v in r] for r in near + many]))
-        await asyncio.sleep(2.6)
+        await asyncio.sleep(3.6)
         check("Splats fade away in a couple of seconds", len(await page.evaluate(SPLATS)) == 0)
 
         check("No page errors", not errors, str(errors[:3]))
